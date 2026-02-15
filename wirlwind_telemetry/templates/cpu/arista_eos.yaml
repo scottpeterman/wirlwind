@@ -1,0 +1,38 @@
+# Arista EOS CPU utilization template
+# Parses: show processes top once
+# Arista uses Linux-style top output
+
+command: "show processes top once"
+interval: 30
+
+patterns:
+  utilization:
+    # %Cpu(s):  3.2 us,  1.1 sy,  0.0 ni, 95.4 id,  0.3 wa
+    pattern: '%Cpu\(s\):\s+([\d.]+)\s+us,\s+([\d.]+)\s+sy,\s+[\d.]+\s+ni,\s+([\d.]+)\s+id'
+    groups:
+      user_pct: 1
+      system_pct: 2
+      idle_pct: 3
+    types:
+      user_pct: float
+      system_pct: float
+      idle_pct: float
+
+  processes:
+    type: table
+    # PID USER  PR  NI  VIRT  RES  SHR  S  %CPU  %MEM  TIME+  COMMAND
+    pattern: '^\s*(\d+)\s+\S+\s+\d+\s+[\d-]+\s+\S+\s+\S+\s+\S+\s+\S\s+([\d.]+)\s+([\d.]+)\s+\S+\s+(.+?)\s*$'
+    flags: MULTILINE
+    groups:
+      pid: 1
+      cpu_pct: 2
+      mem_pct: 3
+      name: 4
+    types:
+      pid: int
+      cpu_pct: float
+      mem_pct: float
+      name: str
+    sort_by: cpu_pct
+    sort_desc: true
+    limit: 20

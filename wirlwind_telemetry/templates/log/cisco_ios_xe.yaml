@@ -1,0 +1,27 @@
+# Cisco IOS-XE syslog template
+# Parses: show logging | last 50
+# Produces: structured log entries with timestamp, facility, severity, message
+
+command: "show logging | last 50"
+interval: 30
+
+patterns:
+  entries:
+    type: table
+    # Standard IOS syslog format:
+    # *Mar 15 14:22:01.234: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/1, changed state to down
+    # Also handles: .Mar 15 ... or just a datestamp
+    pattern: '[*.]?(\w+\s+\d+\s+[\d:]+(?:\.\d+)?):?\s+%(\w+)-(\d)-(\w+):\s+(.+?)$'
+    flags: MULTILINE
+    groups:
+      timestamp: 1
+      facility: 2
+      severity: 3
+      mnemonic: 4
+      message: 5
+    types:
+      timestamp: str
+      facility: str
+      severity: int
+      mnemonic: str
+      message: str

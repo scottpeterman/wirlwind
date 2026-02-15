@@ -1,0 +1,19 @@
+# Arista EOS LLDP neighbors template
+# Parses: show lldp neighbors
+
+command: "show lldp neighbors"
+interval: 300
+
+patterns:
+  neighbors:
+    type: table
+    pattern: '^(\S+)\s+(Et\S+|Ma\S+)\s+\d+\s+\S+\s+(\S+)\s*$'
+    flags: MULTILINE
+    groups:
+      device_id: 1
+      local_intf: 2
+      remote_port: 3
+    types:
+      device_id: str
+      local_intf: str
+      remote_port: str

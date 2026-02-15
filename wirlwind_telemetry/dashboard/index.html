@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wirlwind Telemetry</title>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=JetBrains+Mono:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #0a0e14;
+  --bg-panel: #111820;
+  --bg-panel-header: #151d27;
+  --border: #1e2a38;
+  --border-accent: #2a3a4e;
+  --text-primary: #c8d6e5;
+  --text-secondary: #6b7d93;
+  --text-dim: #3d4f63;
+  --green: #00e676;
+  --green-dim: #00e67633;
+  --amber: #ffab00;
+  --amber-dim: #ffab0033;
+  --red: #ff1744;
+  --red-dim: #ff174433;
+  --cyan: #00e5ff;
+  --cyan-dim: #00e5ff22;
+  --blue: #2979ff;
+  --blue-dim: #2979ff33;
+  --purple: #d500f9;
+  --scanline: rgba(0,229,255,0.03);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  overflow-x: hidden;
+}
+body::after {
+  content:''; position:fixed; top:0;left:0;right:0;bottom:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
+  pointer-events:none; z-index:9999;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(180deg, #0f1822 0%, var(--bg-primary) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: relative;
+}
+.header::after {
+  content:''; position:absolute; bottom:0;left:0;right:0; height:1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent); opacity:0.4;
+}
+.header-left { display:flex; align-items:center; gap:16px; }
+.logo-mark {
+  width:32px; height:32px; border:2px solid var(--cyan); border-radius:3px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Orbitron',monospace; font-weight:900; font-size:12px;
+  color:var(--cyan); background:var(--cyan-dim);
+  text-shadow:0 0 10px var(--cyan); box-shadow:0 0 12px var(--cyan-dim);
+}
+.device-identity h1 {
+  font-family:'Orbitron',monospace; font-size:14px; font-weight:700;
+  color:var(--text-primary); letter-spacing:2px; text-transform:uppercase;
+}
+.device-identity .subtitle { font-size:10px; color:var(--text-secondary); letter-spacing:1px; margin-top:1px; }
+.header-meta { display:flex; gap:20px; align-items:center; }
+.meta-item { text-align:right; }
+.meta-label { font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; }
+.meta-value { font-size:11px; color:var(--text-secondary); font-weight:500; }
+.meta-value.status-up { color:var(--green); text-shadow:0 0 8px var(--green-dim); }
+.status-dot {
+  display:inline-block; width:6px; height:6px; background:var(--green);
+  border-radius:50%; margin-right:4px; box-shadow:0 0 6px var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+.live-clock { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--cyan); text-shadow:0 0 8px var(--cyan-dim); }
+
+/* Info strip */
+.info-strip {
+  background:var(--bg-panel); border-bottom:1px solid var(--border);
+  padding:6px 16px; display:flex; gap:28px; font-size:11px; overflow-x:auto;
+}
+.info-chip { display:flex; align-items:center; gap:5px; white-space:nowrap; }
+.info-chip .label { color:var(--text-dim); text-transform:uppercase; font-size:9px; letter-spacing:1px; }
+.info-chip .value { color:var(--text-secondary); font-weight:500; }
+
+/* Grid */
+.dashboard { display:grid; grid-template-columns:1fr 1fr 1fr; gap:2px; padding:2px; background:var(--bg-primary); }
+.panel { background:var(--bg-panel); border:1px solid var(--border); overflow:hidden; position:relative; }
+.panel-header {
+  background:var(--bg-panel-header); padding:7px 12px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--border); position:relative;
+}
+.panel-header::before { content:''; position:absolute; left:0;top:0;bottom:0; width:3px; }
+.panel-header.green::before { background:var(--green); box-shadow:0 0 8px var(--green-dim); }
+.panel-header.amber::before { background:var(--amber); box-shadow:0 0 8px var(--amber-dim); }
+.panel-header.cyan::before { background:var(--cyan); box-shadow:0 0 8px var(--cyan-dim); }
+.panel-header.blue::before { background:var(--blue); box-shadow:0 0 8px var(--blue-dim); }
+.panel-header.red::before { background:var(--red); box-shadow:0 0 8px var(--red-dim); }
+.panel-header.purple::before { background:var(--purple); }
+.panel-title {
+  font-family:'Orbitron',monospace; font-size:9px; font-weight:600;
+  letter-spacing:2px; text-transform:uppercase; color:var(--text-secondary);
+}
+.panel-badge {
+  font-size:9px; padding:2px 7px; border-radius:2px; font-weight:600; letter-spacing:1px;
+}
+.badge-ok { background:var(--green-dim); color:var(--green); border:1px solid #00e67644; }
+.badge-warn { background:var(--amber-dim); color:var(--amber); border:1px solid #ffab0044; }
+.badge-crit { background:var(--red-dim); color:var(--red); border:1px solid #ff174444; }
+.badge-none { background:#1e2a3844; color:var(--text-dim); border:1px solid var(--border); }
+.panel-body { padding:10px; min-height:200px; display:flex; align-items:center; justify-content:center; }
+.chart-container { width:100%; height:100%; min-height:200px; }
+.span-2 { grid-column:span 2; }
+.span-3 { grid-column:span 3; }
+.tall { min-height:310px; }
+.tall .panel-body { min-height:280px; }
+
+/* Tables */
+.data-table { width:100%; border-collapse:collapse; font-size:11px; }
+.data-table th {
+  text-align:left; padding:5px 8px; color:var(--text-dim); font-size:9px;
+  text-transform:uppercase; letter-spacing:1.5px; font-weight:600;
+  border-bottom:1px solid var(--border); background:var(--bg-panel-header);
+  position:sticky; top:0; z-index:1;
+}
+.data-table td { padding:4px 8px; border-bottom:1px solid #111820; color:var(--text-secondary); font-family:'Share Tech Mono',monospace; }
+.data-table tr:hover td { background:#0d1520; }
+.intf-up { color:var(--green); }
+.intf-down { color:var(--red); }
+.intf-admin { color:var(--text-dim); }
+.util-bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; min-width:50px; display:inline-block; vertical-align:middle; margin-right:4px; }
+.util-bar-fill { height:100%; border-radius:2px; }
+.util-low { background:var(--green); box-shadow:0 0 4px var(--green-dim); }
+.util-med { background:var(--amber); box-shadow:0 0 4px var(--amber-dim); }
+.util-high { background:var(--red); box-shadow:0 0 4px var(--red-dim); }
+.table-scroll { overflow-y:auto; width:100%; }
+.table-scroll::-webkit-scrollbar { width:4px; }
+.table-scroll::-webkit-scrollbar-track { background:var(--bg-panel); }
+.table-scroll::-webkit-scrollbar-thumb { background:var(--border-accent); border-radius:2px; }
+
+/* Log entries */
+.log-entry { padding:2px 8px; font-family:'Share Tech Mono',monospace; font-size:11px; border-bottom:1px solid #111820; }
+.log-entry:hover { background:#0d1520; }
+.log-ts { color:var(--text-dim); margin-right:8px; }
+.log-sev-0,.log-sev-1,.log-sev-2 { color:var(--red); }
+.log-sev-3 { color:var(--red); }
+.log-sev-4 { color:var(--amber); }
+.log-sev-5 { color:var(--cyan); }
+.log-sev-6,.log-sev-7 { color:var(--text-dim); }
+.log-msg { color:var(--text-secondary); }
+
+/* Waiting state */
+.waiting {
+  color:var(--text-dim); font-family:'Share Tech Mono',monospace;
+  font-size:11px; text-align:center;
+}
+.waiting .spinner {
+  display:inline-block; width:16px; height:16px; border:2px solid var(--border-accent);
+  border-top-color:var(--cyan); border-radius:50%; animation:spin 1s linear infinite;
+  margin-bottom:6px;
+}
+@keyframes spin { to{transform:rotate(360deg);} }
+
+@media (max-width:1200px) { .dashboard{grid-template-columns:1fr 1fr;} .span-3{grid-column:span 2;} }
+@media (max-width:768px) { .dashboard{grid-template-columns:1fr;} .span-2,.span-3{grid-column:span 1;} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo-mark">WT</div>
+    <div class="device-identity">
+      <h1 id="deviceHostname">Waiting for connection...</h1>
+      <div class="subtitle" id="deviceSubtitle">—</div>
+    </div>
+  </div>
+  <div class="header-meta">
+    <div class="meta-item">
+      <div class="meta-label">Status</div>
+      <div class="meta-value" id="connStatus"><span class="status-dot" id="statusDot" style="background:var(--amber)"></span>CONNECTING</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Last Poll</div>
+      <div class="meta-value live-clock" id="liveClock">--:--:--</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Vendor</div>
+      <div class="meta-value" id="vendorLabel">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="info-strip" id="infoStrip">
+  <div class="info-chip"><span class="label">Awaiting data...</span></div>
+</div>
+
+<div class="dashboard">
+  <!-- CPU Gauge -->
+  <div class="panel">
+    <div class="panel-header green">
+      <span class="panel-title">CPU Utilization</span>
+      <span class="panel-badge badge-none" id="cpuBadge">—</span>
+    </div>
+    <div class="panel-body"><div class="chart-container" id="cpuGauge"></div></div>
+  </div>
+
+  <!-- Memory Gauge -->
+  <div class="panel">
+    <div class="panel-header amber">
+      <span class="panel-title">Memory Utilization</span>
+      <span class="panel-badge badge-none" id="memBadge">—</span>
+    </div>
+    <div class="panel-body"><div class="chart-container" id="memGauge"></div></div>
+  </div>
+
+  <!-- Top Processes -->
+  <div class="panel">
+    <div class="panel-header green">
+      <span class="panel-title">Top Processes</span>
+    </div>
+    <div class="panel-body" style="align-items:flex-start;padding:0;">
+      <div class="table-scroll" style="max-height:200px;" id="processContainer">
+        <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Throughput -->
+  <div class="panel span-2 tall">
+    <div class="panel-header blue">
+      <span class="panel-title">Interface Throughput</span>
+      <span class="panel-badge badge-none" id="thruBadge">—</span>
+    </div>
+    <div class="panel-body"><div class="chart-container" id="throughputChart"></div></div>
+  </div>
+
+  <!-- Neighbors -->
+  <div class="panel tall">
+    <div class="panel-header cyan">
+      <span class="panel-title">LLDP / CDP Neighbors</span>
+    </div>
+    <div class="panel-body"><div class="chart-container" id="neighborGraph"></div></div>
+  </div>
+
+  <!-- CPU/Memory Trend -->
+  <div class="panel span-2 tall">
+    <div class="panel-header purple">
+      <span class="panel-title">CPU &amp; Memory Trend</span>
+    </div>
+    <div class="panel-body"><div class="chart-container" id="historyChart"></div></div>
+  </div>
+
+  <!-- Log View -->
+  <div class="panel tall">
+    <div class="panel-header red">
+      <span class="panel-title">Device Log</span>
+      <span class="panel-badge badge-none" id="logBadge">—</span>
+    </div>
+    <div class="panel-body" style="align-items:flex-start;padding:0;">
+      <div class="table-scroll" style="max-height:280px;" id="logContainer">
+        <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interface Table -->
+  <div class="panel span-3">
+    <div class="panel-header blue">
+      <span class="panel-title">Interface Status</span>
+      <span class="panel-badge badge-none" id="intfBadge">—</span>
+    </div>
+    <div class="panel-body" style="align-items:flex-start;padding:0;">
+      <div class="table-scroll" style="max-height:260px;width:100%;" id="intfContainer">
+        <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BGP Peers -->
+  <div class="panel span-3">
+    <div class="panel-header green">
+      <span class="panel-title">BGP Peer Summary</span>
+      <span class="panel-badge badge-none" id="bgpBadge">—</span>
+    </div>
+    <div class="panel-body" style="align-items:flex-start;padding:0;">
+      <div class="table-scroll" style="max-height:240px;width:100%;" id="bgpContainer">
+        <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// WIRLWIND TELEMETRY DASHBOARD
+// Live data via QWebChannel ↔ Python bridge
+// ══════════════════════════════════════════════════════════════════════
+
+let bridge = null;
+const charts = {};
+const throughputHistory = { inbound: [], outbound: [], timestamps: [] };
+const THROUGHPUT_MAX = 72; // 6 hours at 5-min intervals
+
+// ── Chart initialization ───────────────────────────────────────────
+
+function initCharts() {
+  charts.cpu = echarts.init(document.getElementById('cpuGauge'));
+  charts.mem = echarts.init(document.getElementById('memGauge'));
+  charts.throughput = echarts.init(document.getElementById('throughputChart'));
+  charts.neighbor = echarts.init(document.getElementById('neighborGraph'));
+  charts.history = echarts.init(document.getElementById('historyChart'));
+
+  // CPU Gauge
+  charts.cpu.setOption(gaugeOption(0, '—'));
+  charts.mem.setOption(gaugeOption(0, '—'));
+
+  // Throughput (empty)
+  charts.throughput.setOption(areaChartOption([], [], [], 'Mbps'));
+
+  // History (empty)
+  charts.history.setOption({
+    tooltip: { trigger:'axis', backgroundColor:'#151d27', borderColor:'#2a3a4e', textStyle:{color:'#c8d6e5',fontFamily:'Share Tech Mono',fontSize:11} },
+    legend: { data:['CPU %','Memory %'], textStyle:{color:'#6b7d93',fontFamily:'Share Tech Mono',fontSize:10}, top:5, right:10 },
+    grid: { left:50, right:20, top:40, bottom:30 },
+    xAxis: { type:'category', data:[], axisLine:{lineStyle:{color:'#1e2a38'}}, axisLabel:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:9}, splitLine:{show:false} },
+    yAxis: { type:'value', min:0, max:100, name:'%', nameTextStyle:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:9}, axisLine:{lineStyle:{color:'#1e2a38'}}, axisLabel:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:10}, splitLine:{lineStyle:{color:'#111820'}} },
+    series: [
+      { name:'CPU %', type:'line', data:[], smooth:true, showSymbol:false, lineStyle:{color:'#00e676',width:1.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(0,230,118,0.15)'},{offset:1,color:'rgba(0,230,118,0)'}]}} },
+      { name:'Memory %', type:'line', data:[], smooth:true, showSymbol:false, lineStyle:{color:'#ffab00',width:1.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(255,171,0,0.12)'},{offset:1,color:'rgba(255,171,0,0)'}]}} }
+    ]
+  });
+
+  // Neighbor graph (empty)
+  charts.neighbor.setOption({
+    series: [{
+      type:'graph', layout:'force', roam:true,
+      force:{repulsion:200,edgeLength:[80,130],gravity:0.15},
+      label:{show:true,color:'#c8d6e5',fontSize:9,fontFamily:'Share Tech Mono'},
+      data:[], links:[]
+    }]
+  });
+
+  window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
+}
+
+function gaugeOption(value, subtitle) {
+  return {
+    series: [{
+      type:'gauge', startAngle:220, endAngle:-40, min:0, max:100, splitNumber:10, radius:'90%',
+      axisLine: { lineStyle:{ width:12, color:[[0.6,'#00e676'],[0.8,'#ffab00'],[1,'#ff1744']] }},
+      pointer: { itemStyle:{color:'#c8d6e5'}, width:4, length:'60%' },
+      axisTick: { distance:-12, length:6, lineStyle:{color:'#1e2a38',width:1} },
+      splitLine: { distance:-14, length:12, lineStyle:{color:'#2a3a4e',width:1} },
+      axisLabel: { color:'#3d4f63', distance:20, fontSize:10, fontFamily:'Share Tech Mono' },
+      detail: { valueAnimation:true, formatter:'{value}%', color:'#c8d6e5', fontSize:26, fontFamily:'Orbitron', fontWeight:700, offsetCenter:[0,'70%'] },
+      title: { offsetCenter:[0,'92%'], fontSize:9, color:'#3d4f63', fontFamily:'JetBrains Mono' },
+      data: [{ value: value, name: subtitle }]
+    }]
+  };
+}
+
+function areaChartOption(timestamps, series1, series2, yName) {
+  return {
+    tooltip: { trigger:'axis', backgroundColor:'#151d27', borderColor:'#2a3a4e', textStyle:{color:'#c8d6e5',fontFamily:'Share Tech Mono',fontSize:11} },
+    legend: { data:['Inbound','Outbound'], textStyle:{color:'#6b7d93',fontFamily:'Share Tech Mono',fontSize:10}, top:5, right:10 },
+    grid: { left:60, right:20, top:40, bottom:30 },
+    xAxis: { type:'category', data:timestamps, axisLine:{lineStyle:{color:'#1e2a38'}}, axisLabel:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:9,interval:'auto'}, splitLine:{show:false} },
+    yAxis: { type:'value', name:yName, nameTextStyle:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:9}, axisLine:{lineStyle:{color:'#1e2a38'}}, axisLabel:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:10}, splitLine:{lineStyle:{color:'#111820'}} },
+    series: [
+      { name:'Inbound', type:'line', data:series1, smooth:true, showSymbol:false, lineStyle:{color:'#00e5ff',width:2}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(0,229,255,0.25)'},{offset:1,color:'rgba(0,229,255,0)'}]}} },
+      { name:'Outbound', type:'line', data:series2, smooth:true, showSymbol:false, lineStyle:{color:'#d500f9',width:2}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(213,0,249,0.2)'},{offset:1,color:'rgba(213,0,249,0)'}]}} }
+    ]
+  };
+}
+
+// ── Data update handlers ───────────────────────────────────────────
+
+function updateCPU(data) {
+  const val = data.five_min || data.five_sec_total || data.one_min || 0;
+  charts.cpu.setOption({ series:[{data:[{value:Math.round(val), name:'5-MIN AVG'}]}] });
+  const badge = document.getElementById('cpuBadge');
+  if (val > 80) { badge.className='panel-badge badge-crit'; badge.textContent='CRITICAL'; }
+  else if (val > 60) { badge.className='panel-badge badge-warn'; badge.textContent='ELEVATED'; }
+  else { badge.className='panel-badge badge-ok'; badge.textContent='NORMAL'; }
+
+  // Process table (if present in same data or separate)
+  if (data.processes) updateProcessTable(data.processes);
+}
+
+function updateMemory(data) {
+  const val = data.used_pct || 0;
+  const subtitle = (data.used_display && data.total_display)
+    ? `${data.used_display} / ${data.total_display}` : `${val}%`;
+  const color = val > 75 ? '#ffab00' : '#c8d6e5';
+  charts.mem.setOption({
+    series:[{
+      data:[{value:Math.round(val*10)/10, name:subtitle}],
+      detail:{color:color, textShadowColor: val>75 ? '#ffab0044' : 'transparent', textShadowBlur: val>75 ? 10 : 0}
+    }]
+  });
+  const badge = document.getElementById('memBadge');
+  if (val > 85) { badge.className='panel-badge badge-crit'; badge.textContent='CRITICAL'; }
+  else if (val > 70) { badge.className='panel-badge badge-warn'; badge.textContent='ELEVATED'; }
+  else { badge.className='panel-badge badge-ok'; badge.textContent='NORMAL'; }
+}
+
+function updateProcessTable(processes) {
+  if (!processes || !processes.length) return;
+  const container = document.getElementById('processContainer');
+  let html = '<table class="data-table"><thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>MEM</th></tr></thead><tbody>';
+  processes.slice(0,15).forEach(p => {
+    const cpu = p.five_sec || p.cpu_pct || p.five_min || 0;
+    const cpuColor = cpu > 5 ? 'var(--amber)' : cpu > 2 ? 'var(--text-secondary)' : 'var(--text-dim)';
+    const mem = p.mem_pct ? p.mem_pct+'%' : (p.holding ? formatBytes(p.holding) : '—');
+    html += `<tr><td>${p.pid||'—'}</td><td>${p.name||'—'}</td><td style="color:${cpuColor};font-weight:600">${cpu}%</td><td>${mem}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function updateInterfaces(data) {
+  const intfs = data.interfaces || [];
+  if (!intfs.length) return;
+  const container = document.getElementById('intfContainer');
+  let upCount=0, downCount=0, adminCount=0;
+  intfs.forEach(i => {
+    const s = (i.status||'').toLowerCase();
+    if (s.includes('admin')) adminCount++;
+    else if (s === 'up') upCount++;
+    else downCount++;
+  });
+
+  const badge = document.getElementById('intfBadge');
+  badge.className = 'panel-badge badge-ok';
+  badge.textContent = `${upCount} UP / ${downCount} DOWN / ${adminCount} ADMIN-DOWN`;
+
+  let html = '<table class="data-table"><thead><tr><th>Interface</th><th>Status</th><th>Protocol</th><th>IP Address</th></tr></thead><tbody>';
+  intfs.forEach(i => {
+    const s = (i.status||'').toLowerCase();
+    const cls = s.includes('admin') ? 'intf-admin' : s === 'up' ? 'intf-up' : 'intf-down';
+    html += `<tr>
+      <td style="font-weight:600;color:var(--text-primary)">${i.name||'—'}</td>
+      <td class="${cls}">${i.status||'—'}</td>
+      <td class="${cls}">${i.protocol||'—'}</td>
+      <td>${i.ip_address||'—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function updateInterfaceDetail(data) {
+  // If we have detailed interface data with throughput, update the table and chart
+  const intfs = data.interfaces || [];
+  if (!intfs.length) return;
+
+  // Aggregate throughput for chart
+  let totalIn = 0, totalOut = 0;
+  intfs.forEach(i => {
+    totalIn += parseInt(i.input_rate_bps || 0);
+    totalOut += parseInt(i.output_rate_bps || 0);
+  });
+
+  const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+  throughputHistory.timestamps.push(now);
+  throughputHistory.inbound.push(Math.round(totalIn / 1000000)); // bps to Mbps
+  throughputHistory.outbound.push(Math.round(totalOut / 1000000));
+  if (throughputHistory.timestamps.length > THROUGHPUT_MAX) {
+    throughputHistory.timestamps.shift();
+    throughputHistory.inbound.shift();
+    throughputHistory.outbound.shift();
+  }
+  charts.throughput.setOption({
+    xAxis:{data:throughputHistory.timestamps},
+    series:[{data:throughputHistory.inbound},{data:throughputHistory.outbound}]
+  });
+}
+
+function updateBGP(data) {
+  const peers = data.peers || [];
+  if (!peers.length) return;
+  const container = document.getElementById('bgpContainer');
+
+  let estCount=0, idleCount=0;
+  peers.forEach(p => {
+    if (p.state === 'Established') estCount++;
+    else idleCount++;
+  });
+
+  const badge = document.getElementById('bgpBadge');
+  if (idleCount > 0) { badge.className='panel-badge badge-warn'; }
+  else { badge.className='panel-badge badge-ok'; }
+  badge.textContent = `${estCount} EST / ${idleCount} IDLE`;
+
+  let html = '<table class="data-table"><thead><tr><th>Neighbor</th><th>Remote AS</th><th>State</th><th>Up/Down</th><th>Pfx Rcvd</th></tr></thead><tbody>';
+  peers.forEach(p => {
+    const stColor = p.state === 'Established' ? 'var(--green)' : 'var(--red)';
+    const bg = p.state === 'Established' ? '' : 'background:#ff174411;';
+    html += `<tr style="${bg}">
+      <td style="font-weight:600">${p.neighbor||'—'}</td>
+      <td>${p.remote_as||'—'}</td>
+      <td style="color:${stColor};font-weight:600">${p.state||p.state_pfx||'—'}</td>
+      <td>${p.updown||'—'}</td>
+      <td>${(p.prefixes_rcvd||0).toLocaleString()}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function updateNeighbors(data) {
+  const neighbors = data.neighbors || [];
+  if (!neighbors.length) return;
+
+  const hostname = document.getElementById('deviceHostname').textContent || 'this-device';
+  const shortHost = hostname.split('.')[0];
+
+  const nodes = [{
+    name: shortHost,
+    symbolSize: 36,
+    itemStyle:{color:'#00e5ff',borderColor:'#00e5ff',borderWidth:2,shadowColor:'#00e5ff44',shadowBlur:12},
+    label:{color:'#00e5ff',fontWeight:700,fontSize:10},
+    fixed:true, x:150, y:150
+  }];
+  const links = [];
+
+  neighbors.forEach((n,i) => {
+    const name = n.device_id || `neighbor-${i}`;
+    nodes.push({
+      name: name,
+      symbolSize: 24,
+      itemStyle:{color:'#111820',borderColor:'#2979ff',borderWidth:1.5}
+    });
+    links.push({
+      source: shortHost,
+      target: name,
+      label: n.local_intf || '',
+      lineStyle:{color:'#1e2a38',width:1.5,curveness:0.1}
+    });
+  });
+
+  charts.neighbor.setOption({
+    series:[{
+      data:nodes, links:links,
+      edgeLabel:{show:true,fontSize:8,fontFamily:'Share Tech Mono',color:'#3d4f63',formatter:p=>p.data.label||''}
+    }]
+  });
+}
+
+function updateLog(data) {
+  const entries = data.entries || [];
+  if (!entries.length) return;
+  const container = document.getElementById('logContainer');
+  const badge = document.getElementById('logBadge');
+
+  const critCount = entries.filter(e => (e.severity||7) <= 3).length;
+  if (critCount > 0) { badge.className='panel-badge badge-warn'; badge.textContent=`${critCount} WARNINGS`; }
+  else { badge.className='panel-badge badge-ok'; badge.textContent='CLEAR'; }
+
+  let html = '';
+  entries.slice(-30).reverse().forEach(e => {
+    const sev = e.severity || 6;
+    html += `<div class="log-entry">
+      <span class="log-ts">${e.timestamp||''}</span>
+      <span class="log-sev-${sev}">%${e.facility||'SYS'}-${sev}-${e.mnemonic||'MSG'}</span>:
+      <span class="log-msg">${e.message||''}</span>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function updateHistory(cpuHistory, memHistory) {
+  if (!cpuHistory.length && !memHistory.length) return;
+
+  const timestamps = cpuHistory.map(h => {
+    const d = new Date(h.timestamp * 1000);
+    return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+  });
+
+  charts.history.setOption({
+    xAxis:{data:timestamps},
+    series:[
+      {data:cpuHistory.map(h => h.data.five_min || h.data.five_sec || 0)},
+      {data:memHistory.map(h => h.data.used_pct || 0)}
+    ]
+  });
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+
+function formatBytes(bytes) {
+  if (bytes > 1073741824) return (bytes/1073741824).toFixed(1)+'G';
+  if (bytes > 1048576) return (bytes/1048576).toFixed(0)+'M';
+  if (bytes > 1024) return (bytes/1024).toFixed(0)+'K';
+  return bytes+'B';
+}
+
+function updateClock() {
+  document.getElementById('liveClock').textContent =
+    new Date().toLocaleTimeString('en-US',{hour12:false}) + ' UTC';
+}
+
+// ── QWebChannel connection ─────────────────────────────────────────
+
+function connectBridge(retryCount) {
+  retryCount = retryCount || 0;
+  try {
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+      bridge = channel.objects.telemetry;
+      if (!bridge) {
+        console.warn('Bridge object not found, retry ' + retryCount);
+        if (retryCount < 10) setTimeout(() => connectBridge(retryCount + 1), 1000);
+        return;
+      }
+      console.log('QWebChannel connected');
+
+      // Listen for state changes
+      bridge.stateChanged.connect(function(collection, jsonStr) {
+        try {
+          const data = JSON.parse(jsonStr);
+          handleUpdate(collection, data);
+        } catch(e) { console.error('Parse error:', collection, e); }
+      });
+
+      // Listen for cycle completion — refresh history
+      bridge.cycleComplete.connect(function() {
+        refreshHistory();
+      });
+
+      // Listen for connection status
+      bridge.connectionStatus.connect(function(status) {
+        const el = document.getElementById('connStatus');
+        if (status === 'connected') {
+          el.innerHTML = '<span class="status-dot"></span>CONNECTED';
+        } else if (status === 'disconnected') {
+          el.innerHTML = '<span class="status-dot" style="background:var(--red);box-shadow:0 0 6px var(--red)"></span>DISCONNECTED';
+        } else {
+          el.innerHTML = '<span class="status-dot" style="background:var(--red);box-shadow:0 0 6px var(--red)"></span>ERROR';
+        }
+      });
+
+      // Listen for device info
+      bridge.deviceInfoChanged.connect(function(jsonStr) {
+        try { updateDeviceInfo(JSON.parse(jsonStr)); } catch(e) {}
+      });
+
+      // Load initial snapshot
+      try {
+        const snapshot = bridge.getSnapshot();
+        const data = JSON.parse(snapshot);
+        if (data.device && Object.keys(data.device).length) updateDeviceInfo(data.device);
+        if (data.collections) {
+          Object.keys(data.collections).forEach(k => handleUpdate(k, data.collections[k]));
+        }
+        if (data.history) {
+          updateHistory(data.history.cpu || [], data.history.memory || []);
+        }
+      } catch(e) { console.log('No initial data yet'); }
+
+      // Start polling for updates in case signals are missed
+      setInterval(function() {
+        if (!bridge) return;
+        try {
+          const snap = JSON.parse(bridge.getSnapshot());
+          if (snap.collections) {
+            Object.keys(snap.collections).forEach(k => handleUpdate(k, snap.collections[k]));
+          }
+          if (snap.device && Object.keys(snap.device).length) updateDeviceInfo(snap.device);
+          if (snap.history) updateHistory(snap.history.cpu || [], snap.history.memory || []);
+        } catch(e) {}
+      }, 5000);
+    });
+  } catch(e) {
+    console.error('QWebChannel error:', e);
+    if (retryCount < 10) setTimeout(() => connectBridge(retryCount + 1), 1000);
+  }
+}
+
+function handleUpdate(collection, data) {
+  switch(collection) {
+    case 'cpu': updateCPU(data); break;
+    case 'memory': updateMemory(data); break;
+    case 'interfaces': updateInterfaces(data); break;
+    case 'interface_detail': updateInterfaceDetail(data); break;
+    case 'bgp_summary': updateBGP(data); break;
+    case 'neighbors': updateNeighbors(data); break;
+    case 'log': updateLog(data); break;
+    case 'processes': updateProcessTable(data.processes || []); break;
+  }
+}
+
+function refreshHistory() {
+  if (!bridge) return;
+  try {
+    const cpuH = JSON.parse(bridge.getHistory('cpu'));
+    const memH = JSON.parse(bridge.getHistory('memory'));
+    updateHistory(cpuH, memH);
+  } catch(e) {}
+}
+
+function updateDeviceInfo(info) {
+  document.getElementById('deviceHostname').textContent = info.hostname || info.ip || '—';
+  document.getElementById('deviceSubtitle').textContent = [info.vendor, info.ip].filter(Boolean).join(' · ');
+  document.getElementById('vendorLabel').textContent = (info.vendor || '—').replace(/_/g,' ');
+
+  // Update info strip
+  const strip = document.getElementById('infoStrip');
+  let chips = '';
+  if (info.ip) chips += `<div class="info-chip"><span class="label">IP</span><span class="value">${info.ip}</span></div>`;
+  if (info.vendor) chips += `<div class="info-chip"><span class="label">Platform</span><span class="value">${info.vendor.replace(/_/g,' ')}</span></div>`;
+  if (info.username) chips += `<div class="info-chip"><span class="label">User</span><span class="value">${info.username}</span></div>`;
+  if (info.tags && info.tags.length) chips += `<div class="info-chip"><span class="label">Tags</span><span class="value">${info.tags.join(', ')}</span></div>`;
+  if (chips) strip.innerHTML = chips;
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function() {
+  initCharts();
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // Connect to Python bridge
+  if (typeof qt !== 'undefined') {
+    connectBridge();
+  } else {
+    console.log('No QWebChannel — running in standalone browser mode');
+    document.getElementById('connStatus').innerHTML =
+      '<span class="status-dot" style="background:var(--amber);box-shadow:0 0 6px var(--amber)"></span>DEMO MODE';
+  }
+});
+</script>
+</body>
+</html>

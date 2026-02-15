@@ -1,0 +1,23 @@
+# Juniper JunOS LLDP neighbors template
+# Parses: show lldp neighbors
+
+command: "show lldp neighbors"
+interval: 300
+
+patterns:
+  neighbors:
+    type: table
+    pattern: '^(\S+)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s*$'
+    flags: MULTILINE
+    groups:
+      local_intf: 1
+      device_id: 2
+      holdtime: 3
+      capability: 4
+      remote_port: 5
+    types:
+      local_intf: str
+      device_id: str
+      holdtime: int
+      capability: str
+      remote_port: str

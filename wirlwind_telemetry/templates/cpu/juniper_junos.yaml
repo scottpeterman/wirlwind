@@ -1,0 +1,45 @@
+# Juniper JunOS CPU utilization template
+# Parses: show chassis routing-engine
+# Juniper presents CPU per routing engine with user/background/kernel/interrupt
+
+command: "show chassis routing-engine"
+interval: 30
+
+patterns:
+  utilization:
+    pattern: 'CPU utilization:\s+User\s+([\d.]+)\s+percent\s+Background\s+([\d.]+)\s+percent\s+Kernel\s+([\d.]+)\s+percent\s+Interrupt\s+([\d.]+)\s+percent\s+Idle\s+([\d.]+)\s+percent'
+    flags: DOTALL
+    groups:
+      user_pct: 1
+      background_pct: 2
+      kernel_pct: 3
+      interrupt_pct: 4
+      idle_pct: 5
+    types:
+      user_pct: float
+      background_pct: float
+      kernel_pct: float
+      interrupt_pct: float
+      idle_pct: float
+
+  memory_re:
+    pattern: 'Memory utilization\s+(\d+)\s+percent'
+    groups:
+      memory_utilization: 1
+    types:
+      memory_utilization: int
+
+  uptime:
+    pattern: 'Current uptime:\s+(.+?)$'
+    flags: MULTILINE
+    groups:
+      uptime: 1
+    types:
+      uptime: str
+
+  temperature:
+    pattern: 'Temperature\s+([\d.]+)\s+degrees'
+    groups:
+      cpu_temp: 1
+    types:
+      cpu_temp: float

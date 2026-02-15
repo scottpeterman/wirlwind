@@ -1,0 +1,28 @@
+# Cisco IOS-XE interface counters template
+# Parses: show interfaces
+# Produces: per-interface counters, speed, MTU, errors
+# Heavy output — longer interval
+
+command: "show interfaces"
+interval: 60
+
+patterns:
+  interfaces:
+    type: block
+    delimiter: '^(?=\S+\s+is\s+(?:up|down|administratively))'
+    fields:
+      name: '^(\S+)\s+is\s+'
+      status: '^\S+\s+is\s+(up|down|administratively down)'
+      protocol: 'line protocol is\s+(up|down)'
+      description: 'Description:\s+(.+?)$'
+      mtu: 'MTU\s+(\d+)\s+bytes'
+      bandwidth: 'BW\s+(\d+)\s+Kbit'
+      input_rate_bps: 'input rate\s+(\d+)\s+bits/sec'
+      output_rate_bps: 'output rate\s+(\d+)\s+bits/sec'
+      input_packets: '(\d+)\s+packets input'
+      output_packets: '(\d+)\s+packets output'
+      input_errors: '(\d+)\s+input errors'
+      output_errors: '(\d+)\s+output errors'
+      crc_errors: '(\d+)\s+CRC'
+      collisions: '(\d+)\s+collisions'
+      interface_resets: '(\d+)\s+interface resets'

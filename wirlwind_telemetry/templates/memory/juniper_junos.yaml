@@ -1,0 +1,20 @@
+# Juniper JunOS memory utilization template
+# Parses: show system memory
+
+command: "show system memory"
+interval: 30
+
+patterns:
+  utilization:
+    # Mem: 16384M Total, 12288M Used, 4096M Free
+    pattern: 'Mem:\s+(\d+)M\s+Total,\s+(\d+)M\s+Used,\s+(\d+)M\s+Free'
+    groups:
+      total_mb: 1
+      used_mb: 2
+      free_mb: 3
+    types:
+      total_mb: int
+      used_mb: int
+      free_mb: int
+
+post_process: compute_memory_pct

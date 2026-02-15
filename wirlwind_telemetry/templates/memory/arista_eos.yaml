@@ -1,0 +1,20 @@
+# Arista EOS memory utilization template
+# Parses: show processes top once (memory section)
+
+command: "show processes top once"
+interval: 30
+
+patterns:
+  utilization:
+    # KiB Mem : 16382764 total,  2341200 free,  6823312 used,  7218252 buff/cache
+    pattern: 'KiB Mem\s*:\s*(\d+)\s+total,\s*(\d+)\s+free,\s*(\d+)\s+used'
+    groups:
+      total_kb: 1
+      free_kb: 2
+      used_kb: 3
+    types:
+      total_kb: int
+      free_kb: int
+      used_kb: int
+
+post_process: compute_memory_pct
