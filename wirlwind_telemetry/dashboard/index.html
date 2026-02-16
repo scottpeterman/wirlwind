@@ -110,6 +110,7 @@ body::after {
   font-family:'Orbitron',monospace; font-size:9px; font-weight:600;
   letter-spacing:2px; text-transform:uppercase; color:var(--text-secondary);
 }
+.panel-header-right { display:flex; align-items:center; gap:6px; }
 .panel-badge {
   font-size:9px; padding:2px 7px; border-radius:2px; font-weight:600; letter-spacing:1px;
 }
@@ -117,12 +118,146 @@ body::after {
 .badge-warn { background:var(--amber-dim); color:var(--amber); border:1px solid #ffab0044; }
 .badge-crit { background:var(--red-dim); color:var(--red); border:1px solid #ff174444; }
 .badge-none { background:#1e2a3844; color:var(--text-dim); border:1px solid var(--border); }
+.badge-error { background:var(--red-dim); color:var(--red); border:1px solid #ff174444; font-size:8px; }
 .panel-body { padding:10px; min-height:200px; display:flex; align-items:center; justify-content:center; }
 .chart-container { width:100%; height:100%; min-height:200px; }
 .span-2 { grid-column:span 2; }
 .span-3 { grid-column:span 3; }
 .tall { min-height:310px; }
 .tall .panel-body { min-height:280px; }
+
+/* JSON Debug button */
+.debug-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 2px;
+  cursor: pointer;
+  line-height: 1.3;
+  transition: all 0.15s ease;
+  opacity: 0.5;
+}
+.debug-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: var(--cyan-dim);
+  opacity: 1;
+  text-shadow: 0 0 6px var(--cyan-dim);
+}
+.debug-btn.has-data {
+  opacity: 0.7;
+}
+.debug-btn.has-error {
+  border-color: var(--red);
+  color: var(--red);
+  opacity: 0.9;
+}
+
+/* JSON Debug Modal */
+.debug-modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 10000;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+.debug-modal-overlay.visible {
+  display: flex;
+}
+.debug-modal {
+  background: #0d1218;
+  border: 1px solid var(--border-accent);
+  border-radius: 4px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 1px var(--cyan);
+}
+.debug-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-header);
+}
+.debug-modal-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+.debug-modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.debug-parser-tag {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  font-family: 'Share Tech Mono', monospace;
+}
+.parser-textfsm { background: #00e67622; color: var(--green); border: 1px solid #00e67644; }
+.parser-ttp { background: #2979ff22; color: var(--blue); border: 1px solid #2979ff44; }
+.parser-regex { background: #ffab0022; color: var(--amber); border: 1px solid #ffab0044; }
+.parser-none { background: var(--red-dim); color: var(--red); border: 1px solid #ff174444; }
+.debug-modal-actions { display:flex; gap:6px; }
+.debug-action-btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.debug-action-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: var(--cyan-dim);
+}
+.debug-action-btn.copied {
+  border-color: var(--green);
+  color: var(--green);
+}
+.debug-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary);
+}
+.debug-modal-body::-webkit-scrollbar { width:6px; }
+.debug-modal-body::-webkit-scrollbar-track { background:#0d1218; }
+.debug-modal-body::-webkit-scrollbar-thumb { background:var(--border-accent); border-radius:3px; }
+
+/* JSON syntax highlighting */
+.json-key { color: var(--cyan); }
+.json-string { color: var(--green); }
+.json-number { color: var(--amber); }
+.json-bool { color: var(--purple); }
+.json-null { color: var(--text-dim); }
+.json-meta-key { color: var(--red); }
 
 /* Tables */
 .data-table { width:100%; border-collapse:collapse; font-size:11px; }
@@ -170,6 +305,12 @@ body::after {
 }
 @keyframes spin { to{transform:rotate(360deg);} }
 
+/* No-data state (replaces spinner after timeout) */
+.no-data {
+  color:var(--text-dim); font-family:'Share Tech Mono',monospace;
+  font-size:11px; text-align:center;
+}
+
 @media (max-width:1200px) { .dashboard{grid-template-columns:1fr 1fr;} .span-3{grid-column:span 2;} }
 @media (max-width:768px) { .dashboard{grid-template-columns:1fr;} .span-2,.span-3{grid-column:span 1;} }
 </style>
@@ -206,27 +347,36 @@ body::after {
 
 <div class="dashboard">
   <!-- CPU Gauge -->
-  <div class="panel">
+  <div class="panel" data-collection="cpu">
     <div class="panel-header green">
       <span class="panel-title">CPU Utilization</span>
-      <span class="panel-badge badge-none" id="cpuBadge">—</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('cpu')" title="Inspect parsed data">{ }</button>
+        <span class="panel-badge badge-none" id="cpuBadge">—</span>
+      </div>
     </div>
     <div class="panel-body"><div class="chart-container" id="cpuGauge"></div></div>
   </div>
 
   <!-- Memory Gauge -->
-  <div class="panel">
+  <div class="panel" data-collection="memory">
     <div class="panel-header amber">
       <span class="panel-title">Memory Utilization</span>
-      <span class="panel-badge badge-none" id="memBadge">—</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('memory')" title="Inspect parsed data">{ }</button>
+        <span class="panel-badge badge-none" id="memBadge">—</span>
+      </div>
     </div>
     <div class="panel-body"><div class="chart-container" id="memGauge"></div></div>
   </div>
 
   <!-- Top Processes -->
-  <div class="panel">
+  <div class="panel" data-collection="processes">
     <div class="panel-header green">
       <span class="panel-title">Top Processes</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('cpu')" title="Inspect parsed data (from CPU collection)">{ }</button>
+      </div>
     </div>
     <div class="panel-body" style="align-items:flex-start;padding:0;">
       <div class="table-scroll" style="max-height:200px;" id="processContainer">
@@ -236,35 +386,47 @@ body::after {
   </div>
 
   <!-- Throughput -->
-  <div class="panel span-2 tall">
+  <div class="panel span-2 tall" data-collection="interface_detail">
     <div class="panel-header blue">
       <span class="panel-title">Interface Throughput</span>
-      <span class="panel-badge badge-none" id="thruBadge">—</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('interface_detail')" title="Inspect parsed data">{ }</button>
+        <span class="panel-badge badge-none" id="thruBadge">—</span>
+      </div>
     </div>
     <div class="panel-body"><div class="chart-container" id="throughputChart"></div></div>
   </div>
 
   <!-- Neighbors -->
-  <div class="panel tall">
+  <div class="panel tall" data-collection="neighbors">
     <div class="panel-header cyan">
       <span class="panel-title">LLDP / CDP Neighbors</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('neighbors')" title="Inspect parsed data">{ }</button>
+      </div>
     </div>
     <div class="panel-body"><div class="chart-container" id="neighborGraph"></div></div>
   </div>
 
   <!-- CPU/Memory Trend -->
-  <div class="panel span-2 tall">
+  <div class="panel span-2 tall" data-collection="history">
     <div class="panel-header purple">
       <span class="panel-title">CPU &amp; Memory Trend</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('_history')" title="Inspect history buffer">{ }</button>
+      </div>
     </div>
     <div class="panel-body"><div class="chart-container" id="historyChart"></div></div>
   </div>
 
   <!-- Log View -->
-  <div class="panel tall">
+  <div class="panel tall" data-collection="log">
     <div class="panel-header red">
       <span class="panel-title">Device Log</span>
-      <span class="panel-badge badge-none" id="logBadge">—</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('log')" title="Inspect parsed data">{ }</button>
+        <span class="panel-badge badge-none" id="logBadge">—</span>
+      </div>
     </div>
     <div class="panel-body" style="align-items:flex-start;padding:0;">
       <div class="table-scroll" style="max-height:280px;" id="logContainer">
@@ -274,10 +436,13 @@ body::after {
   </div>
 
   <!-- Interface Table -->
-  <div class="panel span-3">
+  <div class="panel span-3" data-collection="interfaces">
     <div class="panel-header blue">
       <span class="panel-title">Interface Status</span>
-      <span class="panel-badge badge-none" id="intfBadge">—</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('interfaces')" title="Inspect parsed data">{ }</button>
+        <span class="panel-badge badge-none" id="intfBadge">—</span>
+      </div>
     </div>
     <div class="panel-body" style="align-items:flex-start;padding:0;">
       <div class="table-scroll" style="max-height:260px;width:100%;" id="intfContainer">
@@ -287,16 +452,39 @@ body::after {
   </div>
 
   <!-- BGP Peers -->
-  <div class="panel span-3">
+  <div class="panel span-3" data-collection="bgp_summary">
     <div class="panel-header green">
       <span class="panel-title">BGP Peer Summary</span>
-      <span class="panel-badge badge-none" id="bgpBadge">—</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('bgp_summary')" title="Inspect parsed data">{ }</button>
+        <span class="panel-badge badge-none" id="bgpBadge">—</span>
+      </div>
     </div>
     <div class="panel-body" style="align-items:flex-start;padding:0;">
       <div class="table-scroll" style="max-height:240px;width:100%;" id="bgpContainer">
         <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     JSON DEBUG MODAL
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="debug-modal-overlay" id="debugOverlay">
+  <div class="debug-modal">
+    <div class="debug-modal-header">
+      <span class="debug-modal-title" id="debugTitle">—</span>
+      <div class="debug-modal-meta">
+        <span class="debug-parser-tag" id="debugParserTag" style="display:none"></span>
+        <span class="debug-parser-tag" id="debugTemplateTag" style="display:none"></span>
+        <div class="debug-modal-actions">
+          <button class="debug-action-btn" id="debugCopyBtn" onclick="copyDebugJSON()">Copy</button>
+          <button class="debug-action-btn" onclick="closeDebug()">Close</button>
+        </div>
+      </div>
+    </div>
+    <div class="debug-modal-body" id="debugBody">No data</div>
   </div>
 </div>
 
@@ -310,6 +498,28 @@ let bridge = null;
 const charts = {};
 const throughputHistory = { inbound: [], outbound: [], timestamps: [] };
 const THROUGHPUT_MAX = 72; // 6 hours at 5-min intervals
+
+// Helper: QWebChannel slots return Promises in PyQt6.
+// This handles both sync (Qt5-style) and async (Qt6-style) returns.
+function bridgeCall(method) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  try {
+    var result = method.apply(bridge, args);
+    if (result && typeof result.then === 'function') {
+      return result; // Already a Promise
+    }
+    return Promise.resolve(result); // Wrap sync value
+  } catch(e) {
+    return Promise.reject(e);
+  }
+}
+
+// Store last-known data per collection for debug inspection
+const collectionCache = {};
+// Track poll cycles for spinner timeout
+const panelPollCount = {};
+const SPINNER_TIMEOUT_CYCLES = 3;
+let totalCycles = 0;
 
 // ── Chart initialization ───────────────────────────────────────────
 
@@ -460,11 +670,9 @@ function updateInterfaces(data) {
 }
 
 function updateInterfaceDetail(data) {
-  // If we have detailed interface data with throughput, update the table and chart
   const intfs = data.interfaces || [];
   if (!intfs.length) return;
 
-  // Aggregate throughput for chart
   let totalIn = 0, totalOut = 0;
   intfs.forEach(i => {
     totalIn += parseInt(i.input_rate_bps || 0);
@@ -473,7 +681,7 @@ function updateInterfaceDetail(data) {
 
   const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
   throughputHistory.timestamps.push(now);
-  throughputHistory.inbound.push(Math.round(totalIn / 1000000)); // bps to Mbps
+  throughputHistory.inbound.push(Math.round(totalIn / 1000000));
   throughputHistory.outbound.push(Math.round(totalOut / 1000000));
   if (throughputHistory.timestamps.length > THROUGHPUT_MAX) {
     throughputHistory.timestamps.shift();
@@ -596,6 +804,201 @@ function updateHistory(cpuHistory, memHistory) {
   });
 }
 
+// ── JSON Debug Modal ──────────────────────────────────────────────
+
+let currentDebugJSON = '';
+
+function showDebug(collectionKey) {
+  const overlay = document.getElementById('debugOverlay');
+  const title = document.getElementById('debugTitle');
+  const body = document.getElementById('debugBody');
+  const parserTag = document.getElementById('debugParserTag');
+  const templateTag = document.getElementById('debugTemplateTag');
+
+  title.textContent = collectionKey.replace(/_/g, ' ').toUpperCase();
+
+  let data = null;
+
+  // Special case: history buffer
+  if (collectionKey === '_history') {
+    title.textContent = 'HISTORY BUFFER';
+    // Use cached history data (populated by refreshHistory)
+    data = collectionCache['_history'] || null;
+    if (!data && bridge) {
+      // Async fetch — update modal when ready
+      Promise.all([
+        bridgeCall(bridge.getHistory, 'cpu'),
+        bridgeCall(bridge.getHistory, 'memory')
+      ]).then(function(results) {
+        try {
+          var cpuH = JSON.parse(results[0]);
+          var memH = JSON.parse(results[1]);
+          data = { cpu_history: cpuH, memory_history: memH };
+          collectionCache['_history'] = data;
+          currentDebugJSON = JSON.stringify(data, null, 2);
+          body.innerHTML = syntaxHighlight(currentDebugJSON);
+        } catch(e) {
+          body.innerHTML = '<span style="color:var(--red)">History parse error: ' + e.message + '</span>';
+        }
+      });
+    }
+    parserTag.style.display = 'none';
+    templateTag.style.display = 'none';
+  } else {
+    // Use cache for regular collections (always up-to-date from signals)
+    data = collectionCache[collectionKey] || null;
+
+    // Show parser metadata tags
+    if (data && data._parsed_by) {
+      parserTag.style.display = '';
+      parserTag.textContent = data._parsed_by.toUpperCase();
+      parserTag.className = 'debug-parser-tag parser-' + data._parsed_by;
+    } else {
+      parserTag.style.display = 'none';
+    }
+
+    if (data && data._template && data._template !== 'inline') {
+      templateTag.style.display = '';
+      templateTag.textContent = data._template;
+      templateTag.className = 'debug-parser-tag';
+      templateTag.style.background = '#1e2a3844';
+      templateTag.style.color = 'var(--text-secondary)';
+      templateTag.style.border = '1px solid var(--border)';
+    } else {
+      templateTag.style.display = 'none';
+    }
+  }
+
+  if (data) {
+    currentDebugJSON = JSON.stringify(data, null, 2);
+    body.innerHTML = syntaxHighlight(currentDebugJSON);
+  } else {
+    currentDebugJSON = '';
+    body.innerHTML = '<span style="color:var(--text-dim)">No data collected yet for this panel.\n\n'
+      + 'Data appears here after the first successful poll cycle.\n'
+      + 'If this persists, check the template configuration for\n'
+      + 'this collection and vendor combination.</span>';
+  }
+
+  // Update debug button state
+  updateDebugButtons();
+
+  overlay.classList.add('visible');
+  document.addEventListener('keydown', debugEscHandler);
+}
+
+function closeDebug() {
+  document.getElementById('debugOverlay').classList.remove('visible');
+  document.removeEventListener('keydown', debugEscHandler);
+}
+
+function debugEscHandler(e) {
+  if (e.key === 'Escape') closeDebug();
+}
+
+// Close on click outside modal
+document.addEventListener('click', function(e) {
+  const overlay = document.getElementById('debugOverlay');
+  if (e.target === overlay) closeDebug();
+});
+
+function copyDebugJSON() {
+  if (!currentDebugJSON) return;
+  const btn = document.getElementById('debugCopyBtn');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(currentDebugJSON).then(() => {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  } else {
+    // Fallback for QWebEngine
+    const ta = document.createElement('textarea');
+    ta.value = currentDebugJSON;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    } catch(e) {
+      btn.textContent = 'Failed';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    }
+    document.body.removeChild(ta);
+  }
+}
+
+function syntaxHighlight(json) {
+  // Escape HTML entities
+  json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  return json.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    function(match) {
+      let cls = 'json-number';
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+          // Key
+          if (/^"_/.test(match)) {
+            cls = 'json-meta-key'; // Metadata keys (_parsed_by, _template, _error)
+          } else {
+            cls = 'json-key';
+          }
+        } else {
+          cls = 'json-string';
+        }
+      } else if (/true|false/.test(match)) {
+        cls = 'json-bool';
+      } else if (/null/.test(match)) {
+        cls = 'json-null';
+      }
+      return '<span class="' + cls + '">' + match + '</span>';
+    }
+  );
+}
+
+function updateDebugButtons() {
+  // Update { } button states based on whether we have data
+  document.querySelectorAll('.debug-btn').forEach(btn => {
+    const panel = btn.closest('.panel');
+    if (!panel) return;
+    const key = panel.getAttribute('data-collection');
+    if (!key) return;
+    const data = collectionCache[key];
+    if (data) {
+      if (data._error || data._parsed_by === 'none') {
+        btn.classList.add('has-error');
+        btn.classList.remove('has-data');
+      } else {
+        btn.classList.add('has-data');
+        btn.classList.remove('has-error');
+      }
+    }
+  });
+}
+
+// ── Spinner timeout ───────────────────────────────────────────────
+
+function checkSpinnerTimeouts() {
+  document.querySelectorAll('.panel[data-collection]').forEach(panel => {
+    const key = panel.getAttribute('data-collection');
+    if (key === 'history' || key === '_history') return;
+    if (collectionCache[key]) return; // Has data, skip
+
+    if (totalCycles >= SPINNER_TIMEOUT_CYCLES) {
+      const waiting = panel.querySelector('.waiting');
+      if (waiting) {
+        waiting.innerHTML = '<div class="no-data">No data</div>';
+      }
+    }
+  });
+}
+
 // ── Helpers ────────────────────────────────────────────────────────
 
 function formatBytes(bytes) {
@@ -628,13 +1031,17 @@ function connectBridge(retryCount) {
       bridge.stateChanged.connect(function(collection, jsonStr) {
         try {
           const data = JSON.parse(jsonStr);
+          collectionCache[collection] = data; // Cache for debug
           handleUpdate(collection, data);
+          updateDebugButtons();
         } catch(e) { console.error('Parse error:', collection, e); }
       });
 
       // Listen for cycle completion — refresh history
       bridge.cycleComplete.connect(function() {
+        totalCycles++;
         refreshHistory();
+        checkSpinnerTimeouts();
       });
 
       // Listen for connection status
@@ -654,30 +1061,29 @@ function connectBridge(retryCount) {
         try { updateDeviceInfo(JSON.parse(jsonStr)); } catch(e) {}
       });
 
-      // Load initial snapshot
-      try {
-        const snapshot = bridge.getSnapshot();
-        const data = JSON.parse(snapshot);
-        if (data.device && Object.keys(data.device).length) updateDeviceInfo(data.device);
-        if (data.collections) {
-          Object.keys(data.collections).forEach(k => handleUpdate(k, data.collections[k]));
-        }
-        if (data.history) {
-          updateHistory(data.history.cpu || [], data.history.memory || []);
-        }
-      } catch(e) { console.log('No initial data yet'); }
+      // Load initial snapshot (fixes "Waiting for connection" header bug)
+      loadInitialData();
+
+      // Retry initial data after a short delay (signal timing fix)
+      setTimeout(loadInitialData, 2000);
 
       // Start polling for updates in case signals are missed
       setInterval(function() {
         if (!bridge) return;
-        try {
-          const snap = JSON.parse(bridge.getSnapshot());
-          if (snap.collections) {
-            Object.keys(snap.collections).forEach(k => handleUpdate(k, snap.collections[k]));
-          }
-          if (snap.device && Object.keys(snap.device).length) updateDeviceInfo(snap.device);
-          if (snap.history) updateHistory(snap.history.cpu || [], snap.history.memory || []);
-        } catch(e) {}
+        bridgeCall(bridge.getSnapshot).then(function(snapStr) {
+          try {
+            var snap = JSON.parse(snapStr);
+            if (snap.collections) {
+              Object.keys(snap.collections).forEach(function(k) {
+                collectionCache[k] = snap.collections[k];
+                handleUpdate(k, snap.collections[k]);
+              });
+            }
+            if (snap.device && Object.keys(snap.device).length) updateDeviceInfo(snap.device);
+            if (snap.history) updateHistory(snap.history.cpu || [], snap.history.memory || []);
+            updateDebugButtons();
+          } catch(e) {}
+        }).catch(function() {});
       }, 5000);
     });
   } catch(e) {
@@ -686,7 +1092,35 @@ function connectBridge(retryCount) {
   }
 }
 
+function loadInitialData() {
+  if (!bridge) return;
+  bridgeCall(bridge.getSnapshot).then(function(snapshot) {
+    try {
+      var data = JSON.parse(snapshot);
+      if (data.device && Object.keys(data.device).length) updateDeviceInfo(data.device);
+      if (data.collections) {
+        Object.keys(data.collections).forEach(function(k) {
+          collectionCache[k] = data.collections[k];
+          handleUpdate(k, data.collections[k]);
+        });
+      }
+      if (data.history) {
+        collectionCache['_history'] = data.history;
+        updateHistory(data.history.cpu || [], data.history.memory || []);
+      }
+      updateDebugButtons();
+    } catch(e) { console.log('No initial data yet'); }
+  }).catch(function() { console.log('No initial data yet'); });
+}
+
 function handleUpdate(collection, data) {
+  // Check for error collections
+  if (data && data._parsed_by === 'none' && data._error) {
+    console.warn(`Parse failed for ${collection}: ${data._error}`);
+    // Don't update the widget, but cache the error for debug inspection
+    return;
+  }
+
   switch(collection) {
     case 'cpu': updateCPU(data); break;
     case 'memory': updateMemory(data); break;
@@ -701,11 +1135,17 @@ function handleUpdate(collection, data) {
 
 function refreshHistory() {
   if (!bridge) return;
-  try {
-    const cpuH = JSON.parse(bridge.getHistory('cpu'));
-    const memH = JSON.parse(bridge.getHistory('memory'));
-    updateHistory(cpuH, memH);
-  } catch(e) {}
+  Promise.all([
+    bridgeCall(bridge.getHistory, 'cpu'),
+    bridgeCall(bridge.getHistory, 'memory')
+  ]).then(function(results) {
+    try {
+      var cpuH = JSON.parse(results[0]);
+      var memH = JSON.parse(results[1]);
+      collectionCache['_history'] = { cpu: cpuH, memory: memH };
+      updateHistory(cpuH, memH);
+    } catch(e) { console.debug('History parse:', e.message); }
+  }).catch(function() {});
 }
 
 function updateDeviceInfo(info) {

@@ -1,0 +1,35 @@
+# Interface status - Cisco IOS / IOS-XE
+#
+# NTC TextFSM returns (lowercased):
+#   interface, ip_address, status, proto
+#
+# NOTE: TextFSM returns "interface" not "intf", and "ip_address" not "ipaddr".
+#       Regex groups renamed to match TextFSM output.
+
+command: "show ip interface brief"
+interval: 60
+
+parsers:
+  # Priority 1: ntc-templates TextFSM
+  - type: textfsm
+    templates:
+      - cisco_ios_show_ip_interface_brief.textfsm
+
+  # Priority 2: regex fallback
+  # Group names aligned with TextFSM output for unified normalize map
+  - type: regex
+    pattern: '^(\S+)\s+([\d.]+|unassigned)\s+\w+\s+\w+\s+((?:administratively )?(?:up|down))\s+(up|down)\s*$'
+    flags: MULTILINE
+    groups:
+      interface: 1
+      ip_address: 2
+      status: 3
+      proto: 4
+
+# Map parser output → canonical schema
+# "interface" → "name" is the only remap needed; rest pass through
+normalize:
+  name: interface
+  ip_address: ip_address
+  status: status
+  protocol: proto

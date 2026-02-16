@@ -1,0 +1,6 @@
+description: Interface summary status
+fields:
+  name:             { type: str,  description: "Interface name" }
+  ip_address:       { type: str,  description: "IP address or unassigned" }
+  status:           { type: str,  description: "Admin status" }
+  protocol:         { type: str,  description: "Line protocol" }

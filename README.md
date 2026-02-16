@@ -1,338 +1,185 @@
 # Wirlwind Telemetry
 
-Real-time network device telemetry dashboard — SSH-driven, multi-vendor, template-based.
+Real-time network device telemetry dashboard. SSH into a device, poll CLI commands on schedule, parse output through a fallback chain (TextFSM → TTP → regex), and render live ECharts gauges, tables, and trend charts in a PyQt6 widget.
 
-**Right-click a device. See everything.** No more login → run 6 commands → try to correlate → decide what's next. One action gives you CPU, memory, interfaces, routing protocol state, neighbors, and syslog in a single mission-control view. The device tells you its story; you decide what to do about it.
+Built for network engineers who need to see what a device is doing *right now* — not what a monitoring system polled 5 minutes ago.
 
-## Status: Working Prototype (v0.1.0)
+![Wirlwind Telemetry Dashboard](screenshots/Screenshot%20from%202026-02-15%2005-35-50.png)
 
-Proven on live Cisco IOS-XE devices via EVE-NG lab. The core loop works:
-SSH connects → commands run → templates parse → state updates → dashboard renders.
+## What It Does
 
-### What works today
-- CPU and memory gauges (live, updating)
-- Interface status table (full population from `show ip interface brief`)
-- Interface throughput chart (aggregate in/out over time)
-- CPU & memory trend (historical line chart)
-- SCNG SSH client with legacy cipher/KEX support
-- Prompt auto-detection and shotgun pagination disabling
-- ANSI sequence filtering
-- Template-driven parsing (YAML regex templates)
-- QWebChannel bridge between Python state store and ECharts JS
-- Standalone launcher with CLI arguments
-- PyQt6 QWebEngineView embedding
+Wirlwind connects to a network device over SSH, runs vendor-specific CLI commands (`show processes cpu sorted`, `show ip interface brief`, etc.), parses the output into structured data, and drives a live HTML dashboard rendered in a QWebEngine panel. Everything updates on a configurable poll schedule — CPU and memory every 30 seconds, interfaces every 60, neighbors every 5 minutes.
 
-### What needs work
-- **Process table** — template regex needs tuning against real `show proc cpu sorted` output
-- **Memory parsing** — IOS-XE memory output format varies by platform/version; needs template variants
-- **Neighbor graph** — LLDP template needs testing; CDP may need a separate template
-- **Log view** — syslog timestamp formats vary; needs broader regex coverage
-- **BGP/OSPF** — should not be hardcoded; must be dynamic (see Routing Protocol Discovery below)
-- **Environment sensors** — `show environment` output is wildly platform-dependent
-- **Device info strip** — needs to populate from `show version` parse (model, serial, uptime, IOS version)
-- **Header** — still shows "Waiting for connection" after connected; device info signal timing
+The dashboard runs either standalone (own window) or embedded as a tab in [nterm](https://github.com/scottpeterman/nterm), a PyQt6 SSH terminal with network tooling integration.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    QWebEngineView                        │
-│                                                         │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────────┐  │
-│  │CPU Gauge│ │Mem Gauge│ │Intf Tbl │ │ Throughput   │  │
-│  │         │ │         │ │         │ │ Chart        │  │
-│  └────┬────┘ └────┬────┘ └────┬────┘ └──────┬───────┘  │
-│       └───────────┴─────┬─────┴──────────────┘          │
-│                    QWebChannel                           │
-│                  ┌──────▼──────┐                         │
-│                  │  Telemetry  │   Python ↔ JS bridge    │
-│                  │   Bridge    │   signals + polling     │
-│                  └──────┬──────┘                         │
-└─────────────────────────┼───────────────────────────────┘
-                          │
-┌─────────────────────────┼───────────────────────────────┐
-│    BACKEND              │                                │
-│                  ┌──────▼──────┐                         │
-│                  │  State Store│  In-memory normalized   │
-│                  │             │  device model           │
-│                  │  (dict + Qt │  + history ring buffer  │
-│                  │   signals)  │  + metadata/errors      │
-│                  └──────┬──────┘                         │
-│                         │ write                          │
-│                  ┌──────▼──────┐                         │
-│                  │ Poll Engine │  QThread                │
-│                  │             │  Synchronous loop:      │
-│                  │  for each   │  check interval →       │
-│                  │  collection:│  send cmd → collect →   │
-│                  │  cmd→parse→ │  parse → normalize →    │
-│                  │  normalize→ │  store → signal         │
-│                  │  store      │                         │
-│                  └──────┬──────┘                         │
-│                         │                                │
-│           ┌─────────────┼─────────────┐                  │
-│     ┌─────▼─────┐ ┌─────▼─────┐ ┌────▼─────┐           │
-│     │ Template  │ │  Parser   │ │  Post-   │           │
-│     │ Loader    │ │  (regex)  │ │ Process  │           │
-│     │           │ │           │ │ (norm)   │           │
-│     │ YAML per  │ │ single /  │ │ cpu norm │           │
-│     │ vendor    │ │ table /   │ │ mem pct  │           │
-│     │ per widget│ │ block     │ │ bgp state│           │
-│     └───────────┘ └───────────┘ └──────────┘           │
-│                         │                                │
-│                  ┌──────▼──────┐                         │
-│                  │ SCNG SSH    │  Legacy cipher/KEX      │
-│                  │ Client      │  ANSI filtering         │
-│                  │             │  Prompt detection        │
-│                  │             │  Shotgun pagination      │
-│                  └──────┬──────┘                         │
-│                         │                                │
-│                  ┌──────▼──────┐                         │
-│                  │    Auth     │  ← THE SEAM             │
-│                  │  Provider   │                         │
-│                  │  (abstract) │  SimpleAuth (standalone) │
-│                  │             │  NtermAuth (vault hook)  │
-│                  └──────┬──────┘                         │
-└─────────────────────────┼───────────────────────────────┘
-                          │ SSH (Paramiko)
-                     ┌────▼────┐
-                     │ DEVICE  │
-                     └─────────┘
+┌──────────────┐     ┌─────────────┐     ┌──────────────┐     ┌────────────┐
+│  SSH Client  │────▶│ Poll Engine  │────▶│ Parser Chain  │────▶│ State Store│
+│  (paramiko)  │     │  (QThread)   │     │ FSM→TTP→regex │     │            │
+└──────────────┘     └──────┬───────┘     └──────────────┘     └─────┬──────┘
+                            │                                        │
+                     ┌──────▼───────┐                         ┌──────▼──────┐
+                     │Vendor Driver │                         │   Bridge    │
+                     │ (normalize)  │                         │(QWebChannel)│
+                     └──────────────┘                         └──────┬──────┘
+                                                                     │
+                                                              ┌──────▼──────┐
+                                                              │  Dashboard  │
+                                                              │  (ECharts)  │
+                                                              └─────────────┘
 ```
 
-## Key Design Decisions
+**Key design principle:** The poll engine and dashboard are vendor-agnostic. All vendor-specific behavior — pagination commands, field name normalization, CPU/memory math — lives in vendor drivers (`drivers/`). All command definitions and parse instructions live in collection configs (`collections/`). Adding a new vendor or a new collection never requires touching the engine or the frontend.
 
-### Template-driven, not hardcoded
-Every widget's data comes from a YAML template that defines the CLI command and regex patterns. Templates are organized by collection type and vendor. To add a new vendor, you write YAML files — no Python changes.
+### Components
 
-```
-templates/
-├── cpu/
-│   ├── cisco_ios_xe.yaml     # show processes cpu sorted
-│   ├── arista_eos.yaml       # show processes top once
-│   └── juniper_junos.yaml    # show chassis routing-engine
-├── memory/
-├── interfaces/
-├── bgp_summary/
-├── neighbors/
-├── environment/
-└── log/
-```
+| Component | File | Role |
+|-----------|------|------|
+| **Poll Engine** | `poll_engine.py` | QThread that runs the SSH → parse → store loop on schedule |
+| **Parser Chain** | `parser_chain.py` | Ordered fallback: TextFSM → TTP → regex. First parser that returns structured data wins |
+| **Collection Configs** | `collections/*/` | YAML files defining commands, parser templates, normalize maps, and schemas per vendor |
+| **Vendor Drivers** | `drivers/` | Vendor-specific post-processing (field normalization, computed fields, cross-collection joins) |
+| **Parse Trace** | `parse_trace.py` | Structured audit log — every parse attempt records what was tried and why it succeeded or failed |
+| **State Store** | `state_store.py` | In-memory state with history ring buffers, emits Qt signals on update |
+| **Bridge** | `bridge.py` | QWebChannel bridge between Python state store and JavaScript dashboard |
+| **Dashboard** | `dashboard/index.html` | Single-file ECharts dashboard, receives JSON updates via QWebChannel |
+| **Widget** | `widget.py` | Top-level PyQt6 widget that wires everything together |
+| **SSH Client** | `ssh_client.py` | Paramiko wrapper with legacy cipher support, ANSI filtering, and prompt detection |
 
-### Normalized state model
-All vendor-specific output is parsed into a common schema. The CPU widget doesn't know if it's talking to IOS-XE or JunOS. It just reads `five_min` from the state store. Normalization happens in the poll engine's post-processing step.
+## Quickstart
 
-### Two SSH sessions, not one
-The telemetry session is separate from any interactive terminal session. This is intentional — you can't screen-scrape while someone is typing config commands. Two sessions from one engineer is nothing for any device.
-
-### Auth provider abstraction
-The `AuthProvider` abstract base class is the integration seam. Standalone mode uses `SimpleAuthProvider` (username/password from CLI). nterm integration uses `NtermAuthProvider` which wraps the existing credential vault and resolver. The telemetry system never imports from `wirlwind.*` directly.
-
-### Synchronous polling, not async
-The poll engine runs all commands in a single synchronous loop per cycle. This means all data in a given cycle represents the same point in time. No race conditions between "I just got new BGP data but interface counters are 30 seconds old." The QThread keeps the UI responsive.
-
-## Routing Protocol Discovery (TODO — Critical)
-
-BGP should not be a default collection. Neither should OSPF, IS-IS, EIGRP, or any routing protocol. The system needs a discovery phase that determines what's running on the device before building the collection list.
-
-### Proposed approach
-
-1. **Phase 0: Capabilities probe** — Run on first connect, before the poll loop starts
-   - `show ip protocols` (IOS-XE) / `show route summary` (JunOS) / `show ip route summary` (EOS)
-   - Parse which routing protocols are active
-   - Check for `show ip bgp summary` responsiveness (some devices have BGP configured but no peers)
-
-2. **Dynamic collection builder** — Based on probe results:
-   - BGP active → add `bgp_summary` collection, load BGP widget
-   - OSPF active → add `ospf_neighbors` collection, load OSPF widget
-   - IS-IS active → add `isis_adjacency` collection
-   - No routing protocols → skip routing section entirely
-
-3. **Dashboard adapts** — Widget grid should be dynamic, not static HTML. Missing collections = missing panels. A device with no BGP shouldn't show an empty BGP table.
-
-### Template additions needed
-```
-templates/
-├── capabilities/           # NEW — phase 0 probes
-│   ├── cisco_ios_xe.yaml   # show ip protocols
-│   ├── arista_eos.yaml
-│   └── juniper_junos.yaml
-├── ospf_neighbors/         # NEW
-│   ├── cisco_ios_xe.yaml   # show ip ospf neighbor
-│   └── ...
-├── isis_adjacency/         # NEW
-│   └── ...
-├── eigrp_neighbors/        # NEW (if we care)
-│   └── ...
-```
-
-## Show Version Parse (TODO)
-
-The header and info strip should populate from `show version` (or equivalent). This gives us:
-- Hostname, model, serial number
-- Software version / train
-- Uptime
-- Total memory (hardware)
-- Boot image
-
-This should be a one-shot collection on connect, not polled. Add a `device_info` template collection with `interval: 0` (run once).
-
-## Widget Roadmap
-
-### Core (v0.1 — current)
-- [x] CPU gauge
-- [x] Memory gauge
-- [x] Interface status table
-- [x] Interface throughput chart (aggregate)
-- [x] CPU & Memory trend
-- [ ] Top processes table (template fix needed)
-- [ ] LLDP/CDP neighbor graph (template fix needed)
-- [ ] Syslog viewer (template fix needed)
-
-### Near-term (v0.2)
-- [ ] Device info from `show version` (one-shot parse)
-- [ ] Routing protocol auto-discovery
-- [ ] Dynamic widget grid (hide panels with no data)
-- [ ] Per-interface throughput (click interface → see its chart)
-- [ ] BGP peer detail (click peer → prefix count history)
-- [ ] OSPF neighbor table
-- [ ] Environment sensors (platform-specific template variants)
-
-### Future (v0.3+)
-- [ ] ARP/MAC table viewer
-- [ ] Route table summary (prefix counts by protocol)
-- [ ] Interface error rate trending (not just current count)
-- [ ] Config change detection (diff last config snapshot)
-- [ ] Alerting thresholds (CPU > 80% → badge goes red + optional notification)
-- [ ] Export snapshot to JSON (for troubleshooting handoff)
-- [ ] Multiple device comparison view (side-by-side)
-- [ ] Template editor UI (edit YAML, test regex against sample output)
-
-## nterm Integration Path
-
-The telemetry widget is designed to embed in nterm (ntermqt / PyQt6) with minimal wiring:
-
-```python
-# In nterm's context menu handler
-from wirlwind_telemetry.auth_interface import NtermAuthProvider, DeviceTarget
-from wirlwind_telemetry.widget import TelemetryWidget
-
-# Hook credential vault
-auth = NtermAuthProvider(self.credential_resolver)
-
-# Create widget as a new tab or popup
-widget = TelemetryWidget(auth_provider=auth, parent=self.tab_widget)
-
-# Launch telemetry on the selected device
-target = DeviceTarget(
-    hostname=session.hostname,
-    port=session.port,
-    vendor=detected_vendor,  # from fingerprinting
-    display_name=session.name,
-    tags=session.tags,
-)
-widget.start(target)
-self.tab_widget.addTab(widget, f"📊 {session.name}")
-```
-
-### What nterm provides
-- Encrypted credential vault with YubiKey support
-- Device inventory with hostname, port, tags
-- Fingerprinting (vendor detection from Secure Cartography)
-- PyQt6 tab infrastructure (QTabWidget)
-- The right-click context menu entry point
-
-### What the telemetry widget provides
-- Self-contained polling and visualization
-- No imports from `wirlwind.*` at runtime
-- Clean lifecycle (start/stop/restart, proper cleanup)
-- Standalone testability without nterm running
-
-## Day 2 Ecosystem Position
-
-```
-Day 0  ──  Discovery         Secure Cartography
-                              └── fingerprint → vendor ID
-Day 1  ──  Inventory          VelocityCMDB
-                              └── device records, tags, sites
-Day 1.5 ── Operational        Wirlwind Telemetry  ← THIS
-           Awareness          └── real-time device health
-                              └── "do I need to investigate?"
-Day 2  ──  Validation         FibTrace, TrafikWatch, Day2 tools
-                              └── "is the network doing what
-                                   it's supposed to?"
-```
-
-Wirlwind Telemetry answers the question: **"What is this device doing right now?"**
-That's the question you ask before you decide whether to open a terminal, run a workflow, or close the ticket.
-
-## Running Standalone
+### Prerequisites
 
 ```bash
-pip install -e .
-
-# Cisco IOS-XE
-python -m wirlwind_telemetry \
-    --host 172.16.100.1 \
-    --vendor cisco_ios_xe \
-    --user cisco \
-    --debug
-
-# Arista EOS
-python -m wirlwind_telemetry \
-    --host 10.0.0.2 \
-    --vendor arista_eos \
-    --user admin \
-    --key ~/.ssh/id_rsa
-
-# Juniper JunOS
-python -m wirlwind_telemetry \
-    --host 10.0.0.3 \
-    --vendor juniper_junos \
-    --user admin
-
-# Disable legacy cipher support (modern devices only)
-python -m wirlwind_telemetry \
-    --host 10.0.0.1 \
-    --vendor cisco_ios_xe \
-    --user admin \
-    --no-legacy
+pip install PyQt6 PyQt6-WebEngine paramiko pyyaml textfsm ntc-templates
 ```
 
-## Dependencies
+Optional: `pip install ttp` for TTP template support.
 
-- Python 3.10+
-- PyQt6 + PyQt6-WebEngine
-- Paramiko
-- PyYAML
-- ECharts 5.5 (loaded from CDN at runtime)
+### Run Standalone
+
+```bash
+python -m wirlwind_telemetry --host 10.0.0.1 --vendor cisco_ios_xe --user admin
+```
+
+### Preflight Check
+
+Validate templates resolve before connecting:
+
+```bash
+python -m wirlwind_telemetry --host 10.0.0.1 --vendor cisco_ios_xe --user admin --preflight-only --debug
+```
+
+### Embed in nterm
+
+```python
+from wirlwind_telemetry.widget import TelemetryWidget
+from wirlwind_telemetry.auth_interface import SimpleAuthProvider, DeviceTarget
+
+auth = SimpleAuthProvider("admin", password="cisco")
+target = DeviceTarget("10.0.0.1", vendor="cisco_ios_xe")
+
+widget = TelemetryWidget(auth_provider=auth, parent=tab_widget)
+widget.start(target)
+```
+
+## Supported Vendors
+
+| Vendor ID | Platform | Driver |
+|-----------|----------|--------|
+| `cisco_ios` | Cisco IOS 15.x | `CiscoIOSDriver` |
+| `cisco_ios_xe` | Cisco IOS-XE 16.x/17.x | `CiscoIOSDriver` |
+| `cisco_nxos` | Cisco NX-OS | `CiscoNXOSDriver` |
+| `arista_eos` | Arista EOS | `AristaEOSDriver` |
+| `juniper_junos` | Juniper JunOS | `JuniperJunOSDriver` |
+
+Adding a vendor requires only a new driver file in `drivers/` and collection YAML configs — no engine changes.
+
+## Collections
+
+Each collection is a directory under `collections/` containing:
+- Per-vendor YAML configs (command, parsers, normalize map)
+- A `_schema.yaml` defining canonical fields and types
+
+| Collection | Command (IOS-XE) | Interval | Status |
+|------------|-------------------|----------|--------|
+| `cpu` | `show processes cpu sorted` | 30s | ✓ Working |
+| `memory` | `show processes memory sorted` | 30s | ✓ Working |
+| `interfaces` | `show ip interface brief` | 60s | ✓ Working |
+| `log` | `show logging` | 30s | ✓ Working |
+| `bgp_summary` | `show ip bgp summary` | 60s | ✓ Working |
+| `neighbors` | `show lldp neighbors detail` | 300s | Planned |
+| `environment` | `show environment all` | 120s | Planned |
+| `interface_detail` | `show interfaces` | 60s | Planned |
+
+## Custom Templates
+
+When an NTC TextFSM template breaks on a specific IOS version (and they do), drop a fixed copy into `templates/textfsm/`. The resolver searches local templates first, NTC second. Reference multiple templates in collection YAML and they're tried in order:
+
+```yaml
+parsers:
+  - type: textfsm
+    templates:
+      - my_fixed_show_processes_cpu.textfsm      # tried first (local)
+      - cisco_ios_show_processes_cpu.textfsm      # tried second (ntc-templates)
+  - type: regex                                    # tried third
+    pattern: 'CPU utilization for five seconds:\s+(\d+)%...'
+```
+
+## Debug & Troubleshooting
+
+Run with `--debug` for full parse trace output:
+
+```
+TRACE [cpu] parsed_by=textfsm rows=47 fields=5 duration=12.3ms
+TRACE [memory] parsed_by=textfsm rows=1 fields=8 duration=8.1ms
+TRACE [interfaces] parsed_by=textfsm rows=15 fields=6 duration=5.2ms
+```
+
+When a parser fails, the trace shows exactly why:
+
+```
+TRACE [cpu] parsed_by=none rows=0 fields=0 ERROR=all parsers failed (textfsm: 0 rows returned; regex: 0 matches)
+```
+
+At DEBUG level, full structured JSON traces show every step: command sent, raw output preview, sanitization, each template tried and its resolution path, normalization, type coercion, and final delivery to the state store.
+
+The dashboard's `{ }` debug buttons (on each panel header) dump the current state store JSON for any collection, showing exactly what data reached the frontend.
 
 ## Project Structure
 
 ```
 wirlwind_telemetry/
-├── __init__.py
-├── __main__.py            # Standalone CLI launcher
-├── auth_interface.py      # AuthProvider ABC + Simple/Nterm implementations
-├── bridge.py              # QWebChannel Python↔JS bridge
-├── poll_engine.py         # QThread SSH polling loop
-├── ssh_client.py          # SCNG Paramiko wrapper (legacy support)
-├── state_store.py         # In-memory normalized device model
-├── template_loader.py     # YAML template loading + regex parsing
-├── widget.py              # Embeddable PyQt6 TelemetryWidget
+├── __main__.py              # CLI launcher + preflight checks
+├── poll_engine.py           # SSH poll loop (vendor-agnostic)
+├── parser_chain.py          # TextFSM → TTP → regex fallback chain
+├── parse_trace.py           # Structured parse audit logging
+├── widget.py                # PyQt6 top-level widget
+├── bridge.py                # QWebChannel Python↔JS bridge
+├── state_store.py           # In-memory state + history
+├── ssh_client.py            # Paramiko wrapper (legacy ciphers, ANSI filter)
+├── auth_interface.py        # Auth provider abstraction
+├── drivers/                 # Vendor-specific behavior
+│   ├── __init__.py          # Base driver + registry + shared transforms
+│   ├── cisco_ios.py         # Cisco IOS/IOS-XE
+│   ├── cisco_nxos.py        # Cisco NX-OS
+│   ├── arista_eos.py        # Arista EOS
+│   └── juniper_junos.py     # Juniper JunOS
+├── collections/             # Collection configs (YAML)
+│   ├── cpu/
+│   ├── memory/
+│   ├── interfaces/
+│   ├── log/
+│   └── bgp_summary/
+├── templates/
+│   └── textfsm/             # Custom TextFSM overrides
 ├── dashboard/
-│   └── index.html         # ECharts mission-control dashboard
-└── templates/
-    ├── cpu/               # cisco_ios_xe, arista_eos, juniper_junos
-    ├── memory/            # cisco_ios_xe, arista_eos, juniper_junos
-    ├── interfaces/        # cisco_ios_xe, arista_eos, juniper_junos
-    ├── interface_detail/  # cisco_ios_xe
-    ├── bgp_summary/       # cisco_ios_xe, arista_eos, juniper_junos
-    ├── neighbors/         # cisco_ios_xe, arista_eos, juniper_junos
-    ├── environment/       # cisco_ios_xe
-    └── log/               # cisco_ios_xe, arista_eos
+│   └── index.html           # ECharts dashboard (single file)
+└── __init__.py
 ```
 
 ## License
 
-
-MIT
+[TBD]

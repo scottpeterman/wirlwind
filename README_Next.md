@@ -1,275 +1,152 @@
 # Wirlwind Telemetry — Next Steps
 
-Development roadmap from working prototype to daily-driver tool.
+Immediate action items to close the gap between current state and the demo.html target.
 
----
+## Quick Fixes (< 1 hour each)
 
-## Phase 1: Make What's There Work Right (v0.1.1)
+### 1. Interface names showing dashes
 
-These are bugs and gaps in the current prototype. No new features — just make the existing widgets reliable.
+The interface table shows `-` for the name column. The TextFSM template returns `intf` as the field name, but the dashboard expects `name`. Fix the normalize map in `collections/interfaces/cisco_ios.yaml`:
 
-### 1.1 Header / Device Info Sync
-**Problem:** Header shows "Waiting for connection" even after SSH is connected and data is flowing. The `deviceInfoChanged` signal fires before the JS listener is wired up.  
-**Fix:** Remove reliance on the signal for initial load. Have JS call `bridge.getDeviceInfo()` on QWebChannel connect and again after first poll cycle. The 5-second snapshot poll partially masks this, but first-render should be immediate.
-
-### 1.2 Memory Gauge Showing 0%
-**Problem:** Template parses but post-processing doesn't find expected field names. IOS-XE memory output format varies by platform and version.  
-**Fix:** Capture actual `show processes memory sorted` output from lab device. Adjust regex in `templates/memory/cisco_ios_xe.yaml`. Likely needs an alternate pattern or different field group names. Test with template test harness (see 2.1).
-
-### 1.3 Process Table Not Populating
-**Problem:** CPU template's process regex doesn't match actual output. The `show proc cpu sorted` table format has spacing/column variations across IOS versions.  
-**Fix:** Same approach — capture real output, tune regex. The `| exclude 0.00%` filter in the command may also be stripping lines differently than expected.
-
-### 1.4 Panel Error Visibility
-**Problem:** When a template fails to parse, the panel shows "Waiting for data" spinner forever. No indication of what went wrong.  
-**Fix:** In the JS `handleUpdate`, check for `error:` prefixed collection keys (already emitted by the bridge). Display a red badge with "PARSE ERROR" and optionally the error message in small text. Spinner should timeout after 2 poll cycles and show "No data" instead of spinning forever.
-
-### 1.5 JSON Debug Button on Every Widget
-**Problem:** No way to see what the template actually parsed without adding debug prints and re-running.  
-**Fix:** Add a `{ }` button in every panel header. On click, show a modal overlay with prettified JSON from `bridge.getCollection(key)`. Include copy-to-clipboard. This turns every running dashboard into a template debugger and is essential for all subsequent template work.
-
-**Implementation:**
-- Small monospace `{ }` icon button in panel header, right side, before the badge
-- Modal overlay: dark background, monospace font, syntax-highlighted JSON
-- `Ctrl+C` / copy button on the modal
-- Close on click-outside or Escape
-- The bridge method `getCollection(key)` already exists — this is purely a JS/CSS addition
-
----
-
-## Phase 2: Template Test Harness (v0.1.2)
-
-This unblocks everything else. Every template fix, every new vendor, every new widget requires iterating on regex patterns. Doing that against a live SSH connection is painful. Doing it against captured text files is fast.
-
-### 2.1 CLI Template Tester
-**Build:** `wirlwind_telemetry/tools/template_tester.py`
-
-```bash
-# Capture raw output once
-ssh router "show processes cpu sorted" > samples/cpu_ios_xe.txt
-
-# Test template against it
-python -m wirlwind_telemetry.tools.template_tester \
-    --template templates/cpu/cisco_ios_xe.yaml \
-    --input samples/cpu_ios_xe.txt \
-    --verbose
-
-# Output: parsed JSON + match/miss report per pattern
-```
-
-**Features:**
-- Load YAML template, run all patterns against input text
-- Print parsed result as JSON
-- Report which patterns matched and which missed (with line numbers of near-misses)
-- `--verbose` shows the regex, the groups, and the raw match for each pattern
-- `--post-process` flag to also run normalization (memory pct, CPU normalization, BGP state)
-- Exit code 0 if all patterns match, 1 if any miss — enables CI testing of templates
-
-### 2.2 Sample Output Collection
-**Build:** `samples/` directory with captured command output from lab devices
-
-```
-samples/
-├── cisco_ios_xe/
-│   ├── show_proc_cpu_sorted.txt
-│   ├── show_proc_memory_sorted.txt
-│   ├── show_ip_int_brief.txt
-│   ├── show_interfaces.txt
-│   ├── show_ip_bgp_summary.txt
-│   ├── show_lldp_neighbors.txt
-│   ├── show_environment_all.txt
-│   ├── show_logging.txt
-│   ├── show_version.txt
-│   └── show_ip_protocols.txt
-├── arista_eos/
-│   └── ...
-└── juniper_junos/
-    └── ...
-```
-
-Capture these from your EVE-NG lab. They become the regression test suite for template changes.
-
----
-
-## Phase 3: Essential New Collections (v0.2.0)
-
-### 3.1 Show Version (One-Shot)
-**Purpose:** Populate header, info strip, and device identity.  
-**Design:** New collection type with `interval: 0` meaning "run once on connect, never poll."  
-**Template produces:** hostname, model, serial, software_version, uptime, boot_image, total_memory_hw  
-**Poll engine change:** Check for `interval: 0` templates, run them during connect phase after prompt detection, before entering the poll loop.  
-**Dashboard change:** `show_version` data populates the header (hostname, subtitle), info strip (IP, model, serial, AS, location), and status bar (uptime).
-
-### 3.2 Log Widget
-**Purpose:** Close the diagnostic loop. Every other widget shows "what is the state" — logs show "what happened and when."  
-**Template:** `show logging | last 50` (already exists, needs regex tuning)  
-**Known issues with IOS syslog formats:**
-- `*Mar 15 14:22:01.234:` (uptime-based, asterisk prefix)
-- `.Mar 15 14:22:01.234:` (NTP-synced, dot prefix)
-- `Mar 15 2025 14:22:01.234:` (datetime with year)
-- `2025 Mar 15 14:22:01:` (ISO-ish)
-- Some platforms include hostname, some don't
-
-**Fix:** Broaden the regex to handle all common formats. Multiple pattern variants in the template, first match wins. OR use a more permissive pattern that captures the whole timestamp string and parses severity/facility with a simpler inner regex.
-
-**Dashboard features:**
-- Scrolling list, newest on top
-- Color by severity (0-2 red, 3 red, 4 amber, 5 cyan, 6-7 dim)
-- Severity filter toggles across the top (show/hide by level)
-- On subsequent polls, only show new entries (deduplicate by timestamp+message hash)
-
-### 3.3 Routing Protocol Discovery
-**Purpose:** Don't assume BGP. Don't assume OSPF. Probe the device and build the collection list dynamically.
-
-**Phase 0 probe (runs once, after show version, before poll loop):**
 ```yaml
-# templates/capabilities/cisco_ios_xe.yaml
-command: "show ip protocols summary"
-interval: 0  # one-shot
+normalize:
+  name: intf
+  ip_address: ipaddr
+  status: status
+  protocol: proto
+```
 
-patterns:
-  protocols:
-    type: table
-    pattern: '^\s+(\w+)\s+(\d+)'
+### 2. Log collection missing schema
+
+Preflight warns: `[log] missing _schema.yaml — no type coercion`. Create `collections/log/_schema.yaml`:
+
+```yaml
+description: "Syslog entries from show logging"
+fields:
+  severity:
+    type: int
+    description: "Syslog severity level (0-7)"
+  facility:
+    type: str
+    description: "Syslog facility code"
+  mnemonic:
+    type: str
+    description: "Message mnemonic"
+  message:
+    type: str
+    description: "Log message text"
+  timestamp:
+    type: str
+    description: "Assembled timestamp"
+```
+
+### 3. Process table runtime column
+
+The TextFSM output already includes `process_runtime`. Add aliasing in `drivers/cisco_ios.py` inside `_filter_cpu_processes()`, and add the column to the dashboard's process table header and row template.
+
+## Next Collection: `interface_detail`
+
+This unlocks three demo panels at once: the full interface table, throughput chart, and interface errors chart.
+
+### Collection config: `collections/interface_detail/cisco_ios_xe.yaml`
+
+```yaml
+command: "show interfaces"
+interval: 60
+
+parsers:
+  - type: textfsm
+    templates:
+      - cisco_ios_show_interfaces.textfsm
+
+normalize:
+  name: interface
+  status: link_status
+  protocol: protocol_status
+  speed: bandwidth
+  mtu: mtu
+  in_octets: input_rate
+  out_octets: output_rate
+  in_errors: input_errors
+  out_errors: output_errors
+  crc_errors: crc
+  description: description
+```
+
+NTC has `cisco_ios_show_interfaces.textfsm` and it works for this. The big fields: `bandwidth`, `input_rate`, `output_rate`, `input_errors`, `output_errors`, `crc`, `description`.
+
+### Rate calculation
+
+Interface counters are cumulative. To get Mbps you need:
+
+```
+rate = (current_octets - previous_octets) / interval_seconds * 8 / 1_000_000
+```
+
+This belongs in the driver's `post_process()` for `interface_detail`, not in the engine. The driver needs access to the previous state via `state_store.get("interface_detail")`.
+
+### Dashboard changes
+
+1. Replace the basic interface table with the demo's full table (add speed, MTU, in/out Mbps, utilization bar, errors, description columns)
+2. Add `handleUpdate('interface_detail', data)` to the switch
+3. Wire the throughput chart to interface_detail data instead of placeholder
+
+## Next Collection: `environment`
+
+### Collection config: `collections/environment/cisco_ios_xe.yaml`
+
+```yaml
+command: "show environment all"
+interval: 120
+
+parsers:
+  - type: textfsm
+    templates:
+      - cisco_ios_show_environment_all.textfsm
+  - type: regex
+    pattern: '(?P<sensor>\S+.*?)\s+(?P<state>Normal|Warning|Critical|Not Present)\s+(?P<reading>\d+)\s*(?P<unit>[A-Za-z/]+)'
+    flags: MULTILINE
+```
+
+NTC has `cisco_ios_show_environment_all.textfsm` but it's spotty across IOS versions. The regex fallback covers the common case.
+
+### Dashboard panel
+
+Horizontal bar chart (ECharts bar type, horizontal orientation) with color coding:
+- Green: normal range
+- Amber: warning
+- Red: critical
+- Cyan: fan RPM (different scale)
+
+## Template Strategy Reminders
+
+When adding collections, follow this pattern for every vendor config:
+
+```yaml
+parsers:
+  # 1. Custom override (if you've hit an NTC bug)
+  - type: textfsm
+    templates:
+      - my_fixed_template.textfsm         # local override, tried first
+      - vendor_show_command.textfsm        # NTC template, tried second
+
+  # 2. Regex fallback (always have one)
+  - type: regex
+    pattern: '...'
     groups:
-      protocol: 1
-      process_id: 2
+      field_name: 1
 ```
 
-**Poll engine changes:**
-1. After connect + show version, run capabilities probe
-2. Parse which protocols are active
-3. For each active protocol, check if a template exists (e.g., `templates/bgp_summary/{vendor}.yaml`)
-4. Only add matching collections to the poll list
-5. Emit a `widgetConfig` signal to the dashboard with the active collection list
+Always include a regex fallback. TextFSM templates are fragile — they fail silently when the output format doesn't match exactly. The regex catches the common case and keeps the widget alive.
 
-**Dashboard changes:**
-- On `widgetConfig`, show/hide routing protocol panels
-- If no routing protocols detected, collapse the routing section entirely
-- Panel for each active protocol: BGP → peer table, OSPF → neighbor table, etc.
+## Files to Delete
 
-**New templates needed:**
-```
-templates/
-├── capabilities/           # Phase 0 probes
-│   ├── cisco_ios_xe.yaml   # show ip protocols summary
-│   ├── arista_eos.yaml     # show ip route summary
-│   └── juniper_junos.yaml  # show route summary
-├── ospf_neighbors/
-│   ├── cisco_ios_xe.yaml   # show ip ospf neighbor
-│   ├── arista_eos.yaml     # show ip ospf neighbor
-│   └── juniper_junos.yaml  # show ospf neighbor
-├── isis_adjacency/         # if needed
-│   └── ...
-```
+- `template_loader.py` — Dead code. The collection system + parser chain replaced it entirely. `poll_engine.py` no longer references it. Widget no longer imports it. Remove it and its tests.
 
----
+## Testing Priority
 
-## Phase 4: Dashboard Polish (v0.2.5)
+1. **Parse trace validation.** Run with `--debug` against a live device and verify every collection produces a TRACE line. Any collection showing `parsed_by=none` needs investigation.
 
-### 4.1 Dynamic Widget Grid
-**Problem:** All panels are hardcoded in HTML. Missing data = empty panel with spinner.  
-**Fix:** Dashboard receives active collection list from bridge. JS builds the grid dynamically based on what's available. Template:
-- Always show: CPU, Memory, Interfaces, Throughput, Trend
-- Conditionally show: BGP, OSPF, Neighbors, Environment, Log
-- Auto-hide after 2 full poll cycles if still no data
+2. **Custom template override.** Place a dummy TextFSM file in `templates/textfsm/` with the same name as an NTC template. Verify it resolves first in the preflight output and actually gets used during parsing.
 
-### 4.2 Per-Interface Click-Through
-**Action:** Click an interface row in the table.  
-**Result:** Popup or slide-in panel showing that interface's counters, error rates, and throughput over time.  
-**Data source:** Already in state store from `show interfaces` detail parse. Just needs per-interface history tracking in the state store (currently only CPU and memory have history).
-
-### 4.3 Reconnect Resilience
-**Problem:** If SSH drops mid-poll, the engine thread dies.  
-**Fix:** Catch connection errors in the poll loop, attempt reconnect with exponential backoff (3s, 6s, 12s, max 60s). Emit `connectionStatus("reconnecting")` so dashboard shows amber status. After max retries, emit error and stop. The SCNG client's connect logic is already robust — just need the retry wrapper in the poll engine.
-
-### 4.4 Connection Status Bar
-**Add to info strip or header:** 
-- Poll cycle count
-- Last successful poll timestamp per collection
-- Error count (collections that failed parse on last cycle)
-- Uptime of telemetry session (not device uptime)
-
----
-
-## Phase 5: Multi-Vendor Validation (v0.3.0)
-
-### 5.1 Arista EOS Lab Testing
-- Connect to EOS device in EVE-NG
-- Capture sample output for all commands
-- Tune all Arista templates against real output
-- Validate CPU normalization (Linux-style `top` → five_min equivalent)
-
-### 5.2 Juniper JunOS Lab Testing
-- Connect to JunOS device in EVE-NG
-- Capture sample output for all commands
-- Tune all Juniper templates
-- This is the real test of normalization — fundamentally different output format
-
-### 5.3 Template Coverage Matrix
-Track and publish what works per vendor:
-
-| Collection | IOS-XE | EOS | JunOS |
-|---|---|---|---|
-| CPU | ✅ tested | ⚠ untested | ⚠ untested |
-| Memory | ⚠ partial | ⚠ untested | ⚠ untested |
-| Interfaces | ✅ tested | ⚠ untested | ⚠ untested |
-| Interface Detail | ⚠ partial | — | — |
-| BGP Summary | ⚠ untested | ⚠ untested | ⚠ untested |
-| Neighbors | ⚠ untested | ⚠ untested | ⚠ untested |
-| Environment | ⚠ untested | — | — |
-| Log | ⚠ untested | ⚠ untested | — |
-| Show Version | — | — | — |
-| Capabilities | — | — | — |
-
----
-
-## Phase 6: nterm Integration (v0.4.0)
-
-### 6.1 Context Menu Entry
-- Right-click device in nterm's session tree → "Telemetry Dashboard"
-- Uses fingerprint data (if available) for vendor auto-detection
-- Falls back to asking user to select vendor
-
-### 6.2 NtermAuthProvider Wiring
-- Import `CredentialResolver` from `wirlwind.vault.resolver`
-- `NtermAuthProvider` wraps it (already written, untested)
-- Credentials resolved by pattern matching or explicit selection
-- No second auth prompt — vault is already unlocked
-
-### 6.3 Tab Integration
-- TelemetryWidget opens as a new tab in nterm's QTabWidget
-- Tab title: `📊 device-name`
-- Tab close triggers widget cleanup (stop polling, close SSH)
-- Multiple telemetry tabs allowed (one per device)
-
-### 6.4 Vendor Auto-Detection
-- If Secure Cartography fingerprint data is available in the session metadata, use it
-- Map fingerprint vendor strings to template vendor names
-- If no fingerprint, offer a dropdown selector before connecting
-
----
-
-## Build Order Summary
-
-```
-v0.1.1  Fix header sync, panel error visibility, JSON debug button
-        └── All JS/CSS changes, no backend work
-
-v0.1.2  Template test harness + sample output collection
-        └── Capture from lab, tune all existing templates
-
-v0.2.0  Show version, log widget, routing protocol discovery
-        └── New templates, poll engine changes, dynamic dashboard
-
-v0.2.5  Dashboard polish — dynamic grid, click-through, reconnect
-        └── JS-heavy, some state store additions
-
-v0.3.0  Multi-vendor validation — EOS and JunOS lab testing
-        └── Template tuning only, no architecture changes
-
-v0.4.0  nterm integration — context menu, auth hook, tab embed
-        └── Wire the seam, test the full workflow
-```
-
-Each phase produces a usable increment. After v0.1.2 you have reliable template development. After v0.2.0 you have a tool worth using daily. After v0.4.0 it's integrated into your primary workflow.
+3. **Driver post-processing.** Verify CPU gauge shows non-zero values (confirms `CiscoIOSDriver._normalize_cpu()` is running). Verify process table shows names and CPU percentages (confirms `_filter_cpu_processes()` aliasing works).

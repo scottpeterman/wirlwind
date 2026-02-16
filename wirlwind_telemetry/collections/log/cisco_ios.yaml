@@ -1,0 +1,41 @@
+# CPU collection - Cisco IOS / IOS-XE
+#
+# NOTE: Do NOT use '| exclude 0.00%' in the command. On quiet devices,
+#       it strips all process rows, TextFSM's Required PROCESS_PID never
+#       fires, returns zero rows, and parsing falls to regex (summary only,
+#       no processes). Filtering is handled in post-processing instead.
+#
+# NTC TextFSM returns (lowercased):
+#   Row 0+: cpu_usage_5_sec, cpu_interruption_5_sec, cpu_usage_1_min,
+#           cpu_usage_5_min, process_pid, process_name,
+#           process_cpu_usage_5_sec, process_cpu_usage_1_min, ...
+#
+# NTC template: cisco_ios_show_processes_cpu.textfsm
+#   (no _sorted variant exists in ntc-templates)
+
+command: "show processes cpu sorted"
+interval: 30
+
+parsers:
+  # Priority 1: ntc-templates TextFSM (returns summary + per-process rows)
+  - type: textfsm
+    templates:
+      - cisco_ios_show_processes_cpu.textfsm
+
+  # Priority 2: regex - captures summary line only (no processes)
+  # Group names aligned with TextFSM output for unified normalize map
+  - type: regex
+    pattern: 'CPU utilization for five seconds:\s+(\d+)%/(\d+)%;\s+one minute:\s+(\d+)%;\s+five minutes:\s+(\d+)%'
+    flags: DOTALL
+    groups:
+      cpu_usage_5_sec: 1
+      cpu_interruption_5_sec: 2
+      cpu_usage_1_min: 3
+      cpu_usage_5_min: 4
+
+# Map parser output → canonical schema
+# Works for both TextFSM and regex (same field names)
+normalize:
+  five_sec: cpu_usage_5_sec
+  one_min: cpu_usage_1_min
+  five_min: cpu_usage_5_min

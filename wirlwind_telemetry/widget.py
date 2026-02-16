@@ -22,7 +22,6 @@ from PyQt6.QtCore import QUrl, Qt
 
 from .auth_interface import AuthProvider, DeviceTarget, SSHCredentials
 from .state_store import DeviceStateStore
-from .template_loader import TemplateLoader
 from .poll_engine import PollEngine
 from .bridge import TelemetryBridge
 
@@ -55,8 +54,14 @@ class TelemetryWidget(QWidget):
     ):
         super().__init__(parent)
         self._auth = auth_provider
-        self._template_loader = TemplateLoader(template_dir)
         self._legacy_mode = legacy_mode
+
+        # template_dir is passed through to PollEngine as a template
+        # search path for the parser chain's TextFSM resolver.
+        # Local templates/textfsm/ is always searched first (by the engine).
+        self._template_search_paths: list[str] = []
+        if template_dir:
+            self._template_search_paths.append(str(template_dir))
 
         self._poll_engine: Optional[PollEngine] = None
         self._credentials: Optional[SSHCredentials] = None
@@ -70,7 +75,7 @@ class TelemetryWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Control bar (minimal — most chrome is in the HTML dashboard)
+        # Control bar
         self._control_bar = QFrame()
         self._control_bar.setFixedHeight(32)
         self._control_bar.setStyleSheet("""
@@ -125,11 +130,10 @@ class TelemetryWidget(QWidget):
         self._web_view = QWebEngineView()
         self._web_view.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
 
-        # Allow local HTML to load CDN resources (ECharts, fonts)
         settings = self._web_view.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
 
-        # Set up web channel — register early with a placeholder bridge
+        # Web channel + bridge
         self._channel = QWebChannel()
         self._state_store = DeviceStateStore(self)
         self._bridge = TelemetryBridge(self._state_store, self)
@@ -138,7 +142,6 @@ class TelemetryWidget(QWidget):
 
         layout.addWidget(self._web_view)
 
-        # Load the dashboard HTML
         self._load_dashboard()
 
     def _load_dashboard(self):
@@ -164,11 +167,9 @@ class TelemetryWidget(QWidget):
         Args:
             target: Device to monitor
             credentials: Pre-resolved credentials (optional).
-                         If not provided, uses the auth provider.
         """
         self._target = target
 
-        # Resolve credentials
         if credentials:
             self._credentials = credentials
         else:
@@ -178,7 +179,7 @@ class TelemetryWidget(QWidget):
             self._set_status("Auth failed — no credentials", error=True)
             return
 
-        # Set device info in state store
+        # Set device info
         self._state_store.set_device_info({
             "hostname": target.display_name or target.hostname,
             "ip": target.hostname,
@@ -188,26 +189,26 @@ class TelemetryWidget(QWidget):
             "username": self._credentials.username,
         })
 
-        # Notify dashboard of device info
         import json
-        self._bridge.deviceInfoChanged.emit(json.dumps(self._state_store.device_info, default=str))
+        self._bridge.deviceInfoChanged.emit(
+            json.dumps(self._state_store.device_info, default=str)
+        )
 
-        # Start poll engine
         vendor = target.vendor
         if not vendor:
             self._set_status("No vendor specified — cannot load templates", error=True)
             return
 
+        # Start poll engine — no more TemplateLoader
         self._poll_engine = PollEngine(
             credentials=self._credentials,
             state_store=self._state_store,
-            template_loader=self._template_loader,
             vendor=vendor,
             legacy_mode=self._legacy_mode,
+            template_search_paths=self._template_search_paths,
             parent=self,
         )
 
-        # Connect signals
         self._poll_engine.connected.connect(self._on_connected)
         self._poll_engine.disconnected.connect(self._on_disconnected)
         self._poll_engine.error.connect(self._on_error)
@@ -224,7 +225,7 @@ class TelemetryWidget(QWidget):
         if self._poll_engine and self._poll_engine.isRunning():
             self._set_status("Stopping...")
             self._poll_engine.stop()
-            self._poll_engine.wait(5000)  # Wait up to 5 seconds
+            self._poll_engine.wait(5000)
 
     def restart(self):
         """Stop and restart telemetry."""

@@ -1,0 +1,38 @@
+# Log collection - Cisco IOS / IOS-XE
+#
+# Retrieves the syslog buffer. Output includes header lines (logging config,
+# buffer size, etc.) followed by log entries. TextFSM handles separating
+# entries from the header. Post-processing trims to most recent N entries.
+#
+# NTC TextFSM returns (lowercased):
+#   number, month, day, time, timezone, facility, severity, mnemonic, message
+#   NOTE: 'message' is a List field (multi-line entries accumulate)
+#
+# Post-processing assembles a 'timestamp' field from month/day/time components
+# when TextFSM is the parser, and limits to the last 50 entries.
+
+command: "show logging"
+interval: 60
+
+parsers:
+  # Priority 1: ntc-templates TextFSM
+  - type: textfsm
+    templates:
+      - cisco_ios_show_logging.textfsm
+
+  # Priority 2: regex - captures %FACILITY-SEVERITY-MNEMONIC lines
+  - type: regex
+    pattern: '^\*?(?:\d+:\s+)?(\w+\s+\d+\s+[\d:.]+)(?:\s+\w+)?:\s+%(\w+)-(\d)-(\w+):\s+(.+)$'
+    flags: MULTILINE
+    groups:
+      timestamp: 1
+      facility: 2
+      severity: 3
+      mnemonic: 4
+      message: 5
+
+# No normalize needed — field names pass through as-is.
+# Both parsers produce: facility, severity, mnemonic, message.
+# TextFSM adds: number, month, day, time, timezone.
+# Regex adds: timestamp (combined string).
+# Post-processing assembles timestamp for TextFSM rows.

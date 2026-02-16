@@ -1,0 +1,23 @@
+# Interface status - Cisco IOS / IOS-XE
+command: "show ip interface brief"
+interval: 60
+
+parsers:
+  - type: textfsm
+    templates:
+      - cisco_ios_show_ip_interface_brief.textfsm
+
+  - type: regex
+    pattern: '^(\S+)\s+([\d.]+|unassigned)\s+\w+\s+\w+\s+((?:administratively )?(?:up|down))\s+(up|down)\s*$'
+    flags: MULTILINE
+    groups:
+      intf: 1
+      ipaddr: 2
+      status: 3
+      proto: 4
+
+normalize:
+  name: intf
+  ip_address: ipaddr
+  status: status
+  protocol: proto
