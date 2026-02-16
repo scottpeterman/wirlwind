@@ -1,0 +1,40 @@
+# Interfaces collection - Arista EOS
+#
+# Actual output format:
+#                                                                          Address
+# Interface         IP Address            Status       Protocol         MTU    Owner
+# ----------------- --------------------- ------------ ------------- --------- -------
+# Ethernet1         10.1.1.1/30           up           up              1500
+# Ethernet2         10.1.1.5/30           up           up              9214
+# Loopback0         172.16.255.1/32       up           up             65535
+# Management1       192.168.1.10/24       up           up              1500
+#
+# TextFSM returns (lowercased):
+#   interface, ip_address, status, protocol, mtu
+
+command: "show ip interface brief"
+interval: 60
+
+parsers:
+  # Priority 1: ntc-templates TextFSM
+  - type: textfsm
+    templates:
+      - arista_eos_show_ip_interface_brief.textfsm
+
+  # Priority 2: regex - captures interface table rows
+  - type: regex
+    pattern: '^(\S+)\s+([\d./]+|unassigned)\s+(\S+)\s+(\S+)\s+(\d+)'
+    flags: MULTILINE
+    groups:
+      name: 1
+      ip_address: 2
+      status: 3
+      protocol: 4
+      mtu: 5
+
+normalize:
+  name: interface
+  ip_address: ip_address
+  status: status
+  protocol: protocol
+  mtu: mtu

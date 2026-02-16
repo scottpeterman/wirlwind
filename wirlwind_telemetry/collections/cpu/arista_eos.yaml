@@ -1,0 +1,34 @@
+# Memory collection - Arista EOS
+#
+# Uses the same "show processes top once" command as the CPU collection.
+# The NTC template returns both CPU and memory system stats.
+# We parse the same output but focus on the memory fields.
+#
+# TextFSM returns (lowercased):
+#   mem_total, mem_used, mem_free, mem_buffers
+#   swap_total, swap_used, swap_free, swap_cached
+#
+# Note: This is KiB (kibibytes), not bytes.
+
+command: "show processes top once"
+interval: 30
+
+parsers:
+  # Priority 1: ntc-templates TextFSM
+  - type: textfsm
+    templates:
+      - arista_eos_show_processes_top_once.textfsm
+
+  # Priority 2: regex - captures KiB Mem line
+  - type: regex
+    pattern: 'KiB Mem\s*:\s*(\d+)\s+total,\s*(\d+)\s+used,\s*(\d+)\s+free'
+    flags: DOTALL
+    groups:
+      total_kb: 1
+      used_kb: 2
+      free_kb: 3
+
+normalize:
+  total_kb: mem_total
+  used_kb: mem_used
+  free_kb: mem_free

@@ -1,0 +1,67 @@
+# Custom override for arista_eos_show_processes_top_once
+# Fixes from NTC template:
+#   1. PRIORITY allows negative values (-51 for real-time kernel threads)
+#   2. Removed ^. -> Error (gracefully skips unmatched lines)
+#
+# Drop in templates/textfsm/ to shadow the NTC version.
+#
+# Reference for 'top' output:
+# https://man7.org/linux/man-pages/man1/top.1.html
+#
+Value Filldown GLOBAL_TIMESTAMP (\d+:\d+:\d+)
+Value Filldown GLOBAL_USERS (\d+)
+Value Filldown GLOBAL_LOAD_AVERAGE_1_MINUTES (\d+[.]?\d*)
+Value Filldown GLOBAL_LOAD_AVERAGE_5_MINUTES (\d+[.]?\d*)
+Value Filldown GLOBAL_LOAD_AVERAGE_15_MINUTES (\d+[.]?\d*)
+Value Filldown GLOBAL_TASKS_TOTAL (\d+)
+Value Filldown GLOBAL_TASKS_RUNNING (\d+)
+Value Filldown GLOBAL_TASKS_SLEEPING (\d+)
+Value Filldown GLOBAL_TASKS_STOPPED (\d+)
+Value Filldown GLOBAL_TASKS_ZOMBIE (\d+)
+Value Filldown GLOBAL_CPU_PERCENT_USER (\d+[.]\d+)
+Value Filldown GLOBAL_CPU_PERCENT_SYSTEM (\d+[.]\d+)
+Value Filldown GLOBAL_CPU_PERCENT_NICE (\d+[.]\d+)
+Value Filldown GLOBAL_CPU_PERCENT_IDLE (\d+[.]\d+)
+Value Filldown GLOBAL_CPU_PERCENT_IOWAIT (\d+[.]\d+)
+Value Filldown GLOBAL_CPU_PERCENT_HI (\d+[.]\d+)
+Value Filldown GLOBAL_CPU_PERCENT_SI (\d+[.]\d+)
+Value Filldown GLOBAL_CPU_PERCENT_STOLEN (\d+[.]\d+)
+Value Filldown GLOBAL_MEM_UNIT (KiB|MiB|GiB|TiB|k|m|g|t)
+Value Filldown GLOBAL_MEM_TOTAL (\d+[.]?\d*)
+Value Filldown GLOBAL_MEM_USED (\d+[.]?\d*)
+Value Filldown GLOBAL_MEM_FREE (\d+[.]?\d*)
+Value Filldown GLOBAL_MEM_BUFFERS (\d+[.]?\d*)
+Value Filldown GLOBAL_SWAP_MEM_UNIT (KiB|MiB|GiB|TiB|k|m|g|t)
+Value Filldown GLOBAL_SWAP_MEM_TOTAL (\d+[.]?\d*)
+Value Filldown GLOBAL_SWAP_MEM_USED (\d+[.]?\d*)
+Value Filldown GLOBAL_SWAP_MEM_FREE (\d+[.]?\d*)
+Value Filldown GLOBAL_SWAP_MEM_CACHED (\d+[.]?\d*)
+Value Required PID (\d+)
+Value USER (\S+)
+Value PRIORITY (-?\d+|rt|RT)
+Value NICE (-?\d+)
+Value VIRTUAL_MEMORY_SIZE (\d+[.]?\d*[gm]?)
+Value RESIDENT_MEMORY_SIZE (\d+[.]?\d*[gm]?)
+Value SHARED_MEMORY_SIZE (\d+[.]?\d*[gm]?)
+Value PROCESS_STATUS (D|I|R|S|T|t|Z)
+Value PERCENT_CPU (\d+[.]\d+)
+Value PERCENT_MEMORY (\d+[.]\d+)
+Value CPU_TIME (\d+:\d+\S+)
+Value COMMAND (\S+)
+
+
+Start
+  ^top - ${GLOBAL_TIMESTAMP} up .*,\s+${GLOBAL_USERS} use.*,\s+load average:\s+${GLOBAL_LOAD_AVERAGE_1_MINUTES},\s+${GLOBAL_LOAD_AVERAGE_5_MINUTES},\s+${GLOBAL_LOAD_AVERAGE_15_MINUTES}$$
+  ^Tasks:\s+${GLOBAL_TASKS_TOTAL} total,\s+${GLOBAL_TASKS_RUNNING} running,\s+${GLOBAL_TASKS_SLEEPING} sleeping,\s+${GLOBAL_TASKS_STOPPED} stopped,\s+${GLOBAL_TASKS_ZOMBIE} zombie$$
+  ^%Cpu[(]s[)]:\s*${GLOBAL_CPU_PERCENT_USER}\sus,\s*${GLOBAL_CPU_PERCENT_SYSTEM}\ssy,\s*${GLOBAL_CPU_PERCENT_NICE}\sni,\s*${GLOBAL_CPU_PERCENT_IDLE}\sid,\s*${GLOBAL_CPU_PERCENT_IOWAIT}\swa,\s*${GLOBAL_CPU_PERCENT_HI}\shi,\s*${GLOBAL_CPU_PERCENT_SI}\ssi,\s*${GLOBAL_CPU_PERCENT_STOLEN}\sst$$
+  ^Cpu[(]s[)]:\s*${GLOBAL_CPU_PERCENT_USER}%us,\s*${GLOBAL_CPU_PERCENT_SYSTEM}%sy,\s*${GLOBAL_CPU_PERCENT_NICE}%ni,\s*${GLOBAL_CPU_PERCENT_IDLE}%id,\s*${GLOBAL_CPU_PERCENT_IOWAIT}%wa,\s*${GLOBAL_CPU_PERCENT_HI}%hi,\s*${GLOBAL_CPU_PERCENT_SI}%si,\s*${GLOBAL_CPU_PERCENT_STOLEN}%st$$
+  ^${GLOBAL_MEM_UNIT}\s+Mem.*:\s+${GLOBAL_MEM_TOTAL}\stotal,\s+${GLOBAL_MEM_USED}\sused,\s+${GLOBAL_MEM_FREE}\sfree,\s+${GLOBAL_MEM_BUFFERS}\sbuffers$$
+  ^${GLOBAL_MEM_UNIT}\s+Mem.*:\s+${GLOBAL_MEM_TOTAL}\stotal,\s+${GLOBAL_MEM_FREE}\sfree,\s+${GLOBAL_MEM_USED}\sused,\s+${GLOBAL_MEM_BUFFERS}\sbuff[/]cache$$
+  ^Mem.*:\s+${GLOBAL_MEM_TOTAL}${GLOBAL_MEM_UNIT}\stotal,\s+${GLOBAL_MEM_USED}[kmgt]\sused,\s+${GLOBAL_MEM_FREE}[kmgt]\sfree,\s+${GLOBAL_MEM_BUFFERS}[kmgt]\sbuffers$$
+  ^${GLOBAL_SWAP_MEM_UNIT}\s+Swap.*:\s+${GLOBAL_SWAP_MEM_TOTAL}\stotal,\s+${GLOBAL_SWAP_MEM_USED}\sused,\s+${GLOBAL_SWAP_MEM_FREE}\sfree,\s+${GLOBAL_SWAP_MEM_CACHED}\scached$$
+  ^${GLOBAL_SWAP_MEM_UNIT}\s+Swap.*:\s+${GLOBAL_SWAP_MEM_TOTAL}\stotal,\s+${GLOBAL_SWAP_MEM_FREE}\sfree,\s+${GLOBAL_SWAP_MEM_USED}\sused.\s+${GLOBAL_SWAP_MEM_CACHED}\savail Mem\s*$$
+  ^Swap.*:\s+${GLOBAL_SWAP_MEM_TOTAL}${GLOBAL_SWAP_MEM_UNIT}\stotal,\s+${GLOBAL_SWAP_MEM_USED}[kmgt]\sused,\s+${GLOBAL_SWAP_MEM_FREE}[kmgt]\sfree,\s+${GLOBAL_SWAP_MEM_CACHED}[kmgt]\scached$$
+  ^$$
+  ^\s*PID\s+USER\s+PR\s+NI\s+VIRT\s+RES\s+SHR\s+S\s+.CPU\s+.MEM\s+TIME.\s+COMMAND\s*$$
+  ^\s*${PID}\s+${USER}\s*${PRIORITY}\s*${NICE}\s+${VIRTUAL_MEMORY_SIZE}\s+${RESIDENT_MEMORY_SIZE}\s+${SHARED_MEMORY_SIZE}\s+${PROCESS_STATUS}\s+${PERCENT_CPU}\s+${PERCENT_MEMORY}\s+${CPU_TIME}\s+${COMMAND}\s*$$ -> Record
+  ^.
