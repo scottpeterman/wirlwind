@@ -17,20 +17,20 @@ The dashboard will eventually either standalone (own window) or embedded as a ta
 ## Architecture
 
 ```
-┌──────────────┐     ┌─────────────┐     ┌──────────────┐     ┌────────────┐
+┌──────────────┐     ┌──────────────┐     ┌───────────────┐     ┌────────────┐
 │  SSH Client  │────▶│ Poll Engine  │────▶│ Parser Chain  │────▶│ State Store│
 │  (paramiko)  │     │  (QThread)   │     │ FSM→TTP→regex │     │            │
-└──────────────┘     └──────┬───────┘     └──────────────┘     └─────┬──────┘
-                            │                                        │
-                     ┌──────▼───────┐                         ┌──────▼──────┐
-                     │Vendor Driver │                         │   Bridge    │
-                     │ (normalize)  │                         │(QWebChannel)│
-                     └──────────────┘                         └──────┬──────┘
-                                                                     │
-                                                              ┌──────▼──────┐
-                                                              │  Dashboard  │
-                                                              │  (ECharts)  │
-                                                              └─────────────┘
+└──────────────┘     └──────┬───────┘     └───────────────┘     └─────┬──────┘
+                            │                                         │
+                     ┌──────▼───────┐                          ┌──────▼──────┐
+                     │Vendor Driver │                          │   Bridge    │
+                     │ (normalize)  │                          │(QWebChannel)│
+                     └──────────────┘                          └──────┬──────┘
+                                                                      │
+                                                               ┌──────▼──────┐
+                                                               │  Dashboard  │
+                                                               │  (ECharts)  │
+                                                               └─────────────┘
 ```
 
 **Key design principle:** The poll engine and dashboard are vendor-agnostic. All vendor-specific behavior — pagination commands, field name normalization, CPU/memory math — lives in vendor drivers (`drivers/`). All command definitions and parse instructions live in collection configs (`collections/`). Adding a new vendor or a new collection never requires touching the engine or the frontend.
