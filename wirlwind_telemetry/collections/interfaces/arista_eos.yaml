@@ -1,40 +1,30 @@
-# Interfaces collection - Arista EOS
+# collections/interfaces/arista_eos.yaml
+# Interface description collection - Arista EOS
 #
-# Actual output format:
-#                                                                          Address
-# Interface         IP Address            Status       Protocol         MTU    Owner
-# ----------------- --------------------- ------------ ------------- --------- -------
-# Ethernet1         10.1.1.1/30           up           up              1500
-# Ethernet2         10.1.1.5/30           up           up              9214
-# Loopback0         172.16.255.1/32       up           up             65535
-# Management1       192.168.1.10/24       up           up              1500
+# Uses "show interfaces description" instead of "show ip interface brief"
+# to provide interface descriptions alongside up/down status.
 #
-# TextFSM returns (lowercased):
-#   interface, ip_address, status, protocol, mtu
+# NTC TextFSM template: arista_eos_show_interfaces_description.textfsm
+# Returns (lowercased):
+#   port, status, protocol, description
 
-command: "show ip interface brief"
+command: "show interfaces description"
 interval: 60
 
 parsers:
-  # Priority 1: ntc-templates TextFSM
+  # Priority 1: NTC TextFSM
   - type: textfsm
     templates:
-      - arista_eos_show_ip_interface_brief.textfsm
+      - arista_eos_show_interfaces_description.textfsm
 
-  # Priority 2: regex - captures interface table rows
+  # Priority 2: regex fallback
   - type: regex
-    pattern: '^(\S+)\s+([\d./]+|unassigned)\s+(\S+)\s+(\S+)\s+(\d+)'
+    pattern: '^(?P<port>\S+)\s+(?P<status>up|down|admin down)\s+(?P<protocol>up|down|lowerlayerdown|notpresent)\s*(?P<description>.*)$'
     flags: MULTILINE
-    groups:
-      name: 1
-      ip_address: 2
-      status: 3
-      protocol: 4
-      mtu: 5
 
 normalize:
-  name: interface
-  ip_address: ip_address
+  name: port
+  interface: port
   status: status
   protocol: protocol
-  mtu: mtu
+  description: description

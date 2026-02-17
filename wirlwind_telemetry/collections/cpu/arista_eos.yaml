@@ -1,34 +1,40 @@
-# Memory collection - Arista EOS
+# CPU collection - Arista EOS
 #
-# Uses the same "show processes top once" command as the CPU collection.
-# The NTC template returns both CPU and memory system stats.
-# We parse the same output but focus on the memory fields.
+# Uses Linux 'top' output via "show processes top once".
+# Same command as the memory collection — TextFSM returns both
+# global CPU/memory stats and per-process rows.
 #
-# TextFSM returns (lowercased):
-#   mem_total, mem_used, mem_free, mem_buffers
-#   swap_total, swap_used, swap_free, swap_cached
+# TextFSM Filldown globals (lowercased):
+#   global_cpu_percent_user, global_cpu_percent_system,
+#   global_cpu_percent_idle, global_cpu_percent_nice, etc.
 #
-# Note: This is KiB (kibibytes), not bytes.
+# TextFSM per-process rows (lowercased):
+#   pid, user, priority, nice, virtual_memory_size,
+#   resident_memory_size, shared_memory_size, process_status,
+#   percent_cpu, percent_memory, cpu_time, command
+#
+# The driver computes five_sec_total from (100 - idle) and
+# builds the process list from per-process rows.
 
 command: "show processes top once"
 interval: 30
 
 parsers:
-  # Priority 1: ntc-templates TextFSM
+  # Priority 1: custom TextFSM (fixes NTC PRIORITY regex for negative values)
   - type: textfsm
     templates:
       - arista_eos_show_processes_top_once.textfsm
 
-  # Priority 2: regex - captures KiB Mem line
+  # Priority 2: regex - captures %Cpu(s) line
   - type: regex
-    pattern: 'KiB Mem\s*:\s*(\d+)\s+total,\s*(\d+)\s+used,\s*(\d+)\s+free'
+    pattern: '%?Cpu\(s\):\s*(\d+\.\d+)\s*%?us,\s*(\d+\.\d+)\s*%?sy,\s*\d+\.\d+\s*%?ni,\s*(\d+\.\d+)\s*%?id'
     flags: DOTALL
     groups:
-      total_kb: 1
-      used_kb: 2
-      free_kb: 3
+      user_pct: 1
+      system_pct: 2
+      idle_pct: 3
 
 normalize:
-  total_kb: mem_total
-  used_kb: mem_used
-  free_kb: mem_free
+  cpu_usr: global_cpu_percent_user
+  cpu_sys: global_cpu_percent_system
+  cpu_idle: global_cpu_percent_idle

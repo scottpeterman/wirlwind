@@ -1,0 +1,38 @@
+# Neighbors collection - Arista EOS
+#
+# Arista uses LLDP by default (CDP requires explicit enablement).
+# Uses "show lldp neighbors detail" for full neighbor information.
+#
+# NTC TextFSM template: arista_eos_show_lldp_neighbors_detail.textfsm
+# Returns (lowercased):
+#   neighbor_name, chassis_id, mgmt_address, neighbor_description,
+#   neighbor_interface, local_interface, neighbor_count, age
+#
+# Note: No 'capabilities' field in the NTC LLDP template.
+# neighbor_description contains the LLDP system description, which
+# often includes platform/version info. The driver extracts a short
+# platform string from it.
+
+command: "show lldp neighbors detail"
+interval: 300
+
+parsers:
+  # Priority 1: NTC TextFSM
+  - type: textfsm
+    templates:
+      - arista_eos_show_lldp_neighbors_detail.textfsm
+
+  # Priority 2: regex fallback — captures core fields per neighbor block
+  - type: regex
+    pattern: 'Interface:\s*(?P<local_interface>\S+),\s*via:\s*LLDP.*?System Name:\s*"?(?P<neighbor_name>\S+?)"?\s*$.*?Management Address(?:es)?:\s*(?P<mgmt_address>\d+\.\d+\.\d+\.\d+).*?Port Description:\s*"?(?P<neighbor_interface>[^"\n]+)'
+    flags: DOTALL|MULTILINE
+
+# Map NTC LLDP fields → dashboard field names
+# Dashboard updateNeighbors() expects: device_id, local_intf, remote_intf
+# Graph also uses: mgmt_ip, platform, capabilities
+normalize:
+  device_id: neighbor_name
+  local_intf: local_interface
+  remote_intf: neighbor_interface
+  mgmt_ip: mgmt_address
+  platform: neighbor_description

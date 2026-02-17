@@ -1,49 +1,30 @@
-# Interface Detail collection - Cisco IOS / IOS-XE
+# collections/interfaces/cisco_ios.yaml
+# Interface description collection - Cisco IOS / IOS-XE
 #
-# Full interface statistics from 'show interfaces'.
-# Unlocks: throughput chart, full interface table, interface errors panel.
+# Uses "show interfaces description" instead of "show ip interface brief"
+# to provide interface descriptions alongside up/down status.
 #
-# NTC TextFSM returns (lowercased):
-#   interface, link_status, protocol_status, description, ip_address,
-#   mtu, bandwidth ("1000000 Kbit"), speed ("1000Mbps"),
-#   input_rate (bps), output_rate (bps), input_pps, output_pps,
-#   input_errors, output_errors, crc, runts, giants, ...
-#
-# NOTE: input_rate / output_rate are the IOS 5-minute weighted averages
-#       in bits/sec — already rate-computed by the device. No delta math
-#       needed for v1. Counter-based delta calculation can come later for
-#       more accurate short-interval rates.
-#
-# NTC template: cisco_ios_show_interfaces.textfsm
+# NTC TextFSM template: cisco_ios_show_interfaces_description.textfsm
+# Returns (lowercased):
+#   port, status, protocol, description
 
-command: "show interfaces"
+command: "show interfaces description"
 interval: 60
 
 parsers:
-  # Priority 1: NTC TextFSM (returns full per-interface rows)
+  # Priority 1: NTC TextFSM
   - type: textfsm
     templates:
-      - cisco_ios_show_interfaces.textfsm
+      - cisco_ios_show_interfaces_description.textfsm
 
-  # Priority 2: regex fallback — captures rate lines only
-  # Less data than TextFSM, but keeps the throughput chart alive
+  # Priority 2: regex fallback
   - type: regex
-    pattern: '(?P<interface>\S+) is (?P<link_status>up|down|administratively down), line protocol is (?P<protocol_status>up|down).*?5 minute input rate (?P<input_rate>\d+) bits/sec.*?5 minute output rate (?P<output_rate>\d+) bits/sec'
-    flags: DOTALL
+    pattern: '^(?P<port>\S+)\s+(?P<status>up|down|admin down|deleted)\s+(?P<protocol>up|down)\s*(?P<description>.*)$'
+    flags: MULTILINE
 
-# Map parser output → dashboard field names
-# Dashboard JS expects: name, status, protocol, input_rate_bps, output_rate_bps
 normalize:
-  name: interface
-  status: link_status
-  protocol: protocol_status
-  input_rate_bps: input_rate
-  output_rate_bps: output_rate
-  in_errors: input_errors
-  out_errors: output_errors
-  crc_errors: crc
+  name: port
+  interface: port
+  status: status
+  protocol: protocol
   description: description
-  ip_address: ip_address
-  mtu: mtu
-  bandwidth_raw: bandwidth
-  speed: speed

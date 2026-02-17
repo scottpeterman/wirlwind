@@ -1,0 +1,48 @@
+# collections/interface_detail/arista_eos.yaml
+# Interface Detail collection - Arista EOS
+#
+# Full interface statistics including rates, errors, bandwidth, MTU.
+# Uses "show interfaces" with a custom TextFSM template that extends
+# the NTC template to capture rate and error fields.
+#
+# Custom template captures (lowercased):
+#   interface, link_status, protocol_status, description, ip_address,
+#   mtu, bandwidth ("1000000 Kbit"), duplex, speed,
+#   input_rate ("1.23 Mbps"), output_rate ("0 bps"),
+#   input_rate_pps, output_rate_pps,
+#   input_packets, output_packets,
+#   input_errors, output_errors, crc, runts, giants
+#
+# Note: Arista rate fields include a unit suffix (bps, Kbps, Mbps, Gbps).
+# The driver converts these to numeric bps values.
+
+command: "show interfaces"
+interval: 60
+
+parsers:
+  # Priority 1: custom TextFSM with rate/error captures
+  - type: textfsm
+    templates:
+      - arista_eos_show_interfaces.textfsm    # local override with rate/error fields
+      - arista_eos_show_interfaces.textfsm    # NTC fallback (no rates, but still gets basics)
+
+  # Priority 2: regex fallback — captures key fields per interface block
+  - type: regex
+    pattern: '^(?P<interface>\S+)\s+is\s+(?P<link_status>\S+).*?line protocol is\s+(?P<protocol_status>\S+).*?MTU\s+(?P<mtu>\d+).*?BW\s+(?P<bandwidth>\d+\s+\w+)'
+    flags: DOTALL|MULTILINE
+
+normalize:
+  interface: interface
+  link_status: link_status
+  protocol_status: protocol_status
+  description: description
+  ip_address: ip_address
+  mtu: mtu
+  bandwidth_raw: bandwidth
+  input_rate_raw: input_rate
+  output_rate_raw: output_rate
+  input_rate_pps: input_rate_pps
+  output_rate_pps: output_rate_pps
+  in_errors: input_errors
+  out_errors: output_errors
+  crc_errors: crc

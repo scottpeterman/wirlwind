@@ -9,10 +9,10 @@ Built for network engineers who need to see what a device is doing *right now* â
 
 Wirlwind connects to a network device over SSH, runs vendor-specific CLI commands (`show processes cpu sorted`, `show interfaces`, `show cdp neighbors detail`, etc.), parses the output into structured data, and drives a live HTML dashboard rendered in a QWebEngine panel. Everything updates on a configurable poll schedule â€” CPU and memory every 30 seconds, interfaces every 60, neighbors every 5 minutes.
 
-The dashboard runs either standalone (own window) or embedded as a tab in [nterm](https://github.com/scottpeterman/nterm), a PyQt6 SSH terminal with network tooling integration.
+The dashboard will eventually either standalone (own window) or embedded as a tab in [nterm](https://github.com/scottpeterman/nterm), a PyQt6 SSH terminal with network tooling integration.
 
 
-![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/screenshots/sample1.png)
+![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/screenshots/sample3.png)
 
 ## Architecture
 

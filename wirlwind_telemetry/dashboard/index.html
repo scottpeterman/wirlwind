@@ -288,6 +288,16 @@ body::after {
 .intf-up { color:var(--green); }
 .intf-down { color:var(--red); }
 .intf-admin { color:var(--text-dim); }
+.intf-row-up td { border-left: 2px solid var(--green); }
+.intf-row-up td:first-child { color:var(--green); font-weight:600; }
+.intf-row-down td { border-left: 2px solid var(--red); }
+.intf-row-down td:first-child { color:var(--red); font-weight:600; }
+.intf-row-admin td { border-left: 2px solid var(--text-dim); }
+.intf-row-admin td:first-child { color:var(--text-dim); }
+.intf-status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+.intf-status-dot.up { background:var(--green); box-shadow:0 0 4px var(--green); }
+.intf-status-dot.down { background:var(--red); box-shadow:0 0 4px var(--red); }
+.intf-status-dot.admin { background:var(--text-dim); }
 .util-bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; min-width:50px; display:inline-block; vertical-align:middle; margin-right:4px; }
 .util-bar-fill { height:100%; border-radius:2px; }
 .util-low { background:var(--green); box-shadow:0 0 4px var(--green-dim); }
@@ -457,7 +467,7 @@ body::after {
   <!-- Interface Table -->
   <div class="panel span-3" data-collection="interfaces">
     <div class="panel-header blue">
-      <span class="panel-title">Interface Status</span>
+      <span class="panel-title">Interface Description</span>
       <div class="panel-header-right">
         <button class="debug-btn" onclick="showDebug('interfaces')" title="Inspect parsed data">{ }</button>
         <span class="panel-badge badge-none" id="intfBadge">—</span>
@@ -661,15 +671,21 @@ function updateInterfaces(data) {
   badge.className = 'panel-badge badge-ok';
   badge.textContent = `${upCount} UP / ${downCount} DOWN / ${adminCount} ADMIN-DOWN`;
 
-  let html = '<table class="data-table"><thead><tr><th>Interface</th><th>Status</th><th>Protocol</th><th>IP Address</th></tr></thead><tbody>';
+  let html = '<table class="data-table"><thead><tr><th>Interface</th><th>Description</th><th>Status</th></tr></thead><tbody>';
   intfs.forEach(i => {
     const s = (i.status||'').toLowerCase();
-    const cls = s.includes('admin') ? 'intf-admin' : s === 'up' ? 'intf-up' : 'intf-down';
-    html += `<tr>
-      <td style="font-weight:600;color:var(--text-primary)">${i.name||'—'}</td>
-      <td class="${cls}">${i.status||'—'}</td>
-      <td class="${cls}">${i.protocol||'—'}</td>
-      <td>${i.ip_address||'—'}</td>
+    const p = (i.protocol||'').toLowerCase();
+    const isAdmin = s.includes('admin');
+    const isUp = s === 'up' && p === 'up';
+    const rowCls = isAdmin ? 'intf-row-admin' : isUp ? 'intf-row-up' : 'intf-row-down';
+    const dotCls = isAdmin ? 'admin' : isUp ? 'up' : 'down';
+    const statusText = isAdmin ? 'admin down' : isUp ? 'up/up' : `${s}/${p||'down'}`;
+    const desc = i.description || '—';
+    const descStyle = desc === '—' ? 'color:var(--text-dim);font-style:italic' : 'color:var(--text-secondary)';
+    html += `<tr class="${rowCls}">
+      <td style="font-weight:600;white-space:nowrap">${i.name||i.interface||'—'}</td>
+      <td style="${descStyle};max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${desc}</td>
+      <td style="white-space:nowrap"><span class="intf-status-dot ${dotCls}"></span>${statusText}</td>
     </tr>`;
   });
   html += '</tbody></table>';
