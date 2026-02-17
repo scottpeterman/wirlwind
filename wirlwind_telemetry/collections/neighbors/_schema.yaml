@@ -1,0 +1,20 @@
+description: "CDP/LLDP neighbor discovery"
+fields:
+  device_id:
+    type: str
+    description: "Neighbor device hostname"
+  local_intf:
+    type: str
+    description: "Local interface connected to neighbor"
+  remote_intf:
+    type: str
+    description: "Neighbor's interface"
+  mgmt_ip:
+    type: str
+    description: "Neighbor management IP address"
+  platform:
+    type: str
+    description: "Neighbor platform/model"
+  capabilities:
+    type: str
+    description: "Neighbor capabilities (Router, Switch, etc.)"

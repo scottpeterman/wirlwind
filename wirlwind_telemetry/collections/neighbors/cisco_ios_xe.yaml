@@ -1,0 +1,36 @@
+# Neighbors collection - Cisco IOS / IOS-XE
+#
+# Uses CDP (enabled by default on Cisco) to discover directly connected
+# neighbors. LLDP is less common on IOS and requires explicit enablement.
+#
+# NTC TextFSM returns (lowercased):
+#   neighbor_name, mgmt_address, platform, neighbor_interface,
+#   local_interface, neighbor_description, capabilities
+#
+# NTC template: cisco_ios_show_cdp_neighbors_detail.textfsm
+
+command: "show cdp neighbors detail"
+interval: 300
+
+parsers:
+  # Priority 1: NTC TextFSM
+  - type: textfsm
+    templates:
+      - cisco_ios_show_cdp_neighbors_detail.textfsm
+
+  # Priority 2: regex fallback — captures core fields per neighbor block
+  - type: regex
+    pattern: 'Device ID:\s*(?P<neighbor_name>\S+).*?IP address:\s*(?P<mgmt_address>\S+).*?Platform:\s*(?P<platform>[^,]+).*?Capabilities:\s*(?P<capabilities>[^\n]+).*?Interface:\s*(?P<local_interface>\S+),\s*Port ID.*?:\s*(?P<neighbor_interface>\S+)'
+    flags: DOTALL
+
+# Map parser output → dashboard field names
+# updateNeighbors() expects: device_id, local_intf
+# Enhanced graph also uses: remote_intf, mgmt_ip, platform, capabilities
+normalize:
+  device_id: neighbor_name
+  local_intf: local_interface
+  remote_intf: neighbor_interface
+  mgmt_ip: mgmt_address
+  platform: platform
+  capabilities: capabilities
+  description: neighbor_description

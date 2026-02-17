@@ -141,6 +141,22 @@ body::after {
   transition: all 0.15s ease;
   opacity: 0.5;
 }
+.intf-select {
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-accent);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  max-width: 180px;
+  outline: none;
+}
+.intf-select:hover { border-color: var(--cyan); color: var(--text-primary); }
+.intf-select:focus { border-color: var(--cyan); color: var(--text-primary); }
+.intf-select option { background: var(--bg-panel); color: var(--text-primary); }
+
 .debug-btn:hover {
   border-color: var(--cyan);
   color: var(--cyan);
@@ -390,6 +406,9 @@ body::after {
     <div class="panel-header blue">
       <span class="panel-title">Interface Throughput</span>
       <div class="panel-header-right">
+        <select id="intfSelect" class="intf-select" onchange="renderThroughputChart()" title="Filter by interface">
+          <option value="__aggregate__">All Interfaces</option>
+        </select>
         <button class="debug-btn" onclick="showDebug('interface_detail')" title="Inspect parsed data">{ }</button>
         <span class="panel-badge badge-none" id="thruBadge">—</span>
       </div>
@@ -450,22 +469,6 @@ body::after {
       </div>
     </div>
   </div>
-
-  <!-- BGP Peers -->
-  <div class="panel span-3" data-collection="bgp_summary">
-    <div class="panel-header green">
-      <span class="panel-title">BGP Peer Summary</span>
-      <div class="panel-header-right">
-        <button class="debug-btn" onclick="showDebug('bgp_summary')" title="Inspect parsed data">{ }</button>
-        <span class="panel-badge badge-none" id="bgpBadge">—</span>
-      </div>
-    </div>
-    <div class="panel-body" style="align-items:flex-start;padding:0;">
-      <div class="table-scroll" style="max-height:240px;width:100%;" id="bgpContainer">
-        <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════
@@ -496,8 +499,12 @@ body::after {
 
 let bridge = null;
 const charts = {};
-const throughputHistory = { inbound: [], outbound: [], timestamps: [] };
+const throughputHistory = {
+  timestamps: [],
+  perInterface: {}   // { "Ethernet1/0": { inbound: [], outbound: [] }, ... }
+};
 const THROUGHPUT_MAX = 72; // 6 hours at 5-min intervals
+const knownInterfaces = new Set();
 
 // Helper: QWebChannel slots return Promises in PyQt6.
 // This handles both sync (Qt5-style) and async (Qt6-style) returns.
@@ -673,96 +680,197 @@ function updateInterfaceDetail(data) {
   const intfs = data.interfaces || [];
   if (!intfs.length) return;
 
-  let totalIn = 0, totalOut = 0;
-  intfs.forEach(i => {
-    totalIn += parseInt(i.input_rate_bps || 0);
-    totalOut += parseInt(i.output_rate_bps || 0);
-  });
-
   const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
   throughputHistory.timestamps.push(now);
-  throughputHistory.inbound.push(Math.round(totalIn / 1000000));
-  throughputHistory.outbound.push(Math.round(totalOut / 1000000));
+
+  // Store per-interface rates for this timestamp
+  const seen = new Set();
+  intfs.forEach(i => {
+    const name = i.name || 'unknown';
+    seen.add(name);
+    if (!throughputHistory.perInterface[name]) {
+      // New interface — backfill with zeros so arrays align with timestamps
+      const backfill = throughputHistory.timestamps.length - 1;
+      throughputHistory.perInterface[name] = {
+        inbound: new Array(backfill).fill(0),
+        outbound: new Array(backfill).fill(0)
+      };
+    }
+    throughputHistory.perInterface[name].inbound.push(parseInt(i.input_rate_bps || 0));
+    throughputHistory.perInterface[name].outbound.push(parseInt(i.output_rate_bps || 0));
+  });
+
+  // Interfaces not in this poll get a zero for this timestamp
+  for (const [name, hist] of Object.entries(throughputHistory.perInterface)) {
+    if (!seen.has(name)) {
+      hist.inbound.push(0);
+      hist.outbound.push(0);
+    }
+  }
+
+  // Trim ring buffer
   if (throughputHistory.timestamps.length > THROUGHPUT_MAX) {
     throughputHistory.timestamps.shift();
-    throughputHistory.inbound.shift();
-    throughputHistory.outbound.shift();
+    for (const hist of Object.values(throughputHistory.perInterface)) {
+      hist.inbound.shift();
+      hist.outbound.shift();
+    }
   }
-  charts.throughput.setOption({
-    xAxis:{data:throughputHistory.timestamps},
-    series:[{data:throughputHistory.inbound},{data:throughputHistory.outbound}]
+
+  // Update dropdown if new interfaces appeared
+  let dropdownChanged = false;
+  intfs.forEach(i => {
+    if (i.name && !knownInterfaces.has(i.name)) {
+      knownInterfaces.add(i.name);
+      dropdownChanged = true;
+    }
   });
+  if (dropdownChanged) {
+    const select = document.getElementById('intfSelect');
+    const current = select.value;
+    // Rebuild options: aggregate first, then sorted interface names
+    select.innerHTML = '<option value="__aggregate__">All Interfaces</option>';
+    [...knownInterfaces].sort().forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+    select.value = current; // Preserve selection
+  }
+
+  renderThroughputChart();
 }
 
-function updateBGP(data) {
-  const peers = data.peers || [];
-  if (!peers.length) return;
-  const container = document.getElementById('bgpContainer');
+function renderThroughputChart() {
+  const select = document.getElementById('intfSelect');
+  const selected = select ? select.value : '__aggregate__';
+  const len = throughputHistory.timestamps.length;
+  if (!len) return;
 
-  let estCount=0, idleCount=0;
-  peers.forEach(p => {
-    if (p.state === 'Established') estCount++;
-    else idleCount++;
+  let inArr, outArr;
+
+  if (selected === '__aggregate__') {
+    // Sum all interfaces per timestamp
+    inArr = new Array(len).fill(0);
+    outArr = new Array(len).fill(0);
+    for (const hist of Object.values(throughputHistory.perInterface)) {
+      for (let i = 0; i < len; i++) {
+        inArr[i] += (hist.inbound[i] || 0);
+        outArr[i] += (hist.outbound[i] || 0);
+      }
+    }
+  } else {
+    const hist = throughputHistory.perInterface[selected];
+    if (!hist) return;
+    inArr = hist.inbound.slice();
+    outArr = hist.outbound.slice();
+  }
+
+  // Auto-scale unit based on peak
+  const peak = Math.max(Math.max(...inArr), Math.max(...outArr), 1);
+  let divisor, unit;
+  if (peak >= 1000000) { divisor = 1000000; unit = 'Mbps'; }
+  else if (peak >= 1000) { divisor = 1000; unit = 'Kbps'; }
+  else { divisor = 1; unit = 'bps'; }
+
+  const scaledIn = inArr.map(v => Math.round((v / divisor) * 100) / 100);
+  const scaledOut = outArr.map(v => Math.round((v / divisor) * 100) / 100);
+
+  charts.throughput.setOption({
+    yAxis: { name: unit },
+    xAxis: { data: throughputHistory.timestamps },
+    series: [{ data: scaledIn }, { data: scaledOut }]
   });
 
-  const badge = document.getElementById('bgpBadge');
-  if (idleCount > 0) { badge.className='panel-badge badge-warn'; }
-  else { badge.className='panel-badge badge-ok'; }
-  badge.textContent = `${estCount} EST / ${idleCount} IDLE`;
-
-  let html = '<table class="data-table"><thead><tr><th>Neighbor</th><th>Remote AS</th><th>State</th><th>Up/Down</th><th>Pfx Rcvd</th></tr></thead><tbody>';
-  peers.forEach(p => {
-    const stColor = p.state === 'Established' ? 'var(--green)' : 'var(--red)';
-    const bg = p.state === 'Established' ? '' : 'background:#ff174411;';
-    html += `<tr style="${bg}">
-      <td style="font-weight:600">${p.neighbor||'—'}</td>
-      <td>${p.remote_as||'—'}</td>
-      <td style="color:${stColor};font-weight:600">${p.state||p.state_pfx||'—'}</td>
-      <td>${p.updown||'—'}</td>
-      <td>${(p.prefixes_rcvd||0).toLocaleString()}</td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-  container.innerHTML = html;
+  // Update badge
+  const curIn = inArr[len - 1] / divisor;
+  const curOut = outArr[len - 1] / divisor;
+  const badge = document.getElementById('thruBadge');
+  if (badge) {
+    badge.className = 'panel-badge badge-ok';
+    const label = selected === '__aggregate__' ? '' : selected + ' ';
+    badge.textContent = `${label}▼ ${curIn.toFixed(1)} / ▲ ${curOut.toFixed(1)} ${unit}`;
+  }
 }
 
 function updateNeighbors(data) {
   const neighbors = data.neighbors || [];
   if (!neighbors.length) return;
 
-  const hostname = document.getElementById('deviceHostname').textContent || 'this-device';
-  const shortHost = hostname.split('.')[0];
+  const hostEl = document.getElementById('deviceHostname');
+  const hostname = (hostEl ? hostEl.textContent : '') || 'this-device';
+  // Strip domain from hostnames (R1.lab.local → R1) but preserve IPs
+  const shortHost = /^\d+\.\d+\.\d+\.\d+$/.test(hostname) ? hostname : hostname.split('.')[0];
 
   const nodes = [{
     name: shortHost,
-    symbolSize: 36,
-    itemStyle:{color:'#00e5ff',borderColor:'#00e5ff',borderWidth:2,shadowColor:'#00e5ff44',shadowBlur:12},
-    label:{color:'#00e5ff',fontWeight:700,fontSize:10},
-    fixed:true, x:150, y:150
+    symbolSize: 40,
+    symbol: 'roundRect',
+    itemStyle:{color:'#0a0e14',borderColor:'#00e5ff',borderWidth:2,shadowColor:'#00e5ff44',shadowBlur:12},
+    label:{color:'#00e5ff',fontWeight:700,fontSize:11}
   }];
   const links = [];
 
   neighbors.forEach((n,i) => {
-    const name = n.device_id || `neighbor-${i}`;
+    const fullName = n.device_id || `neighbor-${i}`;
+    const name = /^\d+\.\d+\.\d+\.\d+$/.test(fullName) ? fullName : fullName.split('.')[0];
+    const caps = (n.capabilities || '').toLowerCase();
+    const isRouter = caps.includes('router');
+    const isSwitch = caps.includes('switch') || caps.includes('bridge');
+
+    // Node styling by type
+    let borderColor, symbol;
+    if (isRouter) { borderColor = '#00e5ff'; symbol = 'roundRect'; }
+    else if (isSwitch) { borderColor = '#00e676'; symbol = 'rect'; }
+    else { borderColor = '#ffab00'; symbol = 'circle'; }
+
+    // Build label with platform/IP detail
+    let detail = name;
+    if (n.mgmt_ip) detail += '\n' + n.mgmt_ip;
+
     nodes.push({
       name: name,
-      symbolSize: 24,
-      itemStyle:{color:'#111820',borderColor:'#2979ff',borderWidth:1.5}
+      symbolSize: 28,
+      symbol: symbol,
+      itemStyle:{color:'#111820',borderColor:borderColor,borderWidth:1.5},
+      label:{formatter: detail}
     });
+
+    // Edge label: local ↔ remote
+    const localShort = (n.local_intf || '').replace(/TenGigabitEthernet/g,'Te').replace(/GigabitEthernet/g,'Gi').replace(/FastEthernet/g,'Fa').replace(/Ethernet/g,'Eth');
+    const remoteShort = (n.remote_intf || '').replace(/TenGigabitEthernet/g,'Te').replace(/GigabitEthernet/g,'Gi').replace(/FastEthernet/g,'Fa').replace(/Ethernet/g,'Eth');
+    const edgeLabel = remoteShort ? `${localShort} ↔ ${remoteShort}` : localShort;
+
     links.push({
       source: shortHost,
       target: name,
-      label: n.local_intf || '',
-      lineStyle:{color:'#1e2a38',width:1.5,curveness:0.1}
+      label: edgeLabel,
+      lineStyle:{color:'#1e2a38',width:1.5,curveness: neighbors.length > 3 ? 0.15 : 0}
     });
   });
 
   charts.neighbor.setOption({
+    tooltip:{
+      show:true,
+      backgroundColor:'#151d27',
+      borderColor:'#2a3a4e',
+      textStyle:{color:'#c8d6e5',fontFamily:'Share Tech Mono',fontSize:10}
+    },
     series:[{
-      data:nodes, links:links,
-      edgeLabel:{show:true,fontSize:8,fontFamily:'Share Tech Mono',color:'#3d4f63',formatter:p=>p.data.label||''}
+      type:'graph', layout:'force', roam:true,
+      force:{repulsion:200, edgeLength:[80,130], gravity:0.15},
+      label:{show:true, color:'#c8d6e5', fontSize:9, fontFamily:'Share Tech Mono'},
+      data:nodes,
+      links:links,
+      edgeLabel:{show:true, fontSize:8, fontFamily:'Share Tech Mono', color:'#3d4f63',
+        formatter: function(p){ return p.data.label || ''; }
+      }
     }]
   });
+
+  // Force resize in case chart was initialized before container was visible
+  charts.neighbor.resize();
 }
 
 function updateLog(data) {
@@ -776,7 +884,8 @@ function updateLog(data) {
   else { badge.className='panel-badge badge-ok'; badge.textContent='CLEAR'; }
 
   let html = '';
-  entries.slice(-30).reverse().forEach(e => {
+  // Entries arrive newest-first from _post_process_log — just take the first 30
+  entries.slice(0, 30).forEach(e => {
     const sev = e.severity || 6;
     html += `<div class="log-entry">
       <span class="log-ts">${e.timestamp||''}</span>
@@ -1126,7 +1235,6 @@ function handleUpdate(collection, data) {
     case 'memory': updateMemory(data); break;
     case 'interfaces': updateInterfaces(data); break;
     case 'interface_detail': updateInterfaceDetail(data); break;
-    case 'bgp_summary': updateBGP(data); break;
     case 'neighbors': updateNeighbors(data); break;
     case 'log': updateLog(data); break;
     case 'processes': updateProcessTable(data.processes || []); break;

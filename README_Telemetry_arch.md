@@ -12,11 +12,12 @@ The design language is deliberate: dark background, monospace type, scanline ove
 
 ### Working
 
-- **5 collections** polling live over SSH: CPU, memory, interfaces, log, BGP summary
+- **7 collections** polling live over SSH: CPU, memory, interfaces, interface_detail, log, neighbors, BGP summary
+- **Complete Cisco IOS/IOS-XE widget set** — every dashboard panel has live data from a validated collection
 - **Parser chain** with ordered fallback: TextFSM → TTP → regex, with custom template override support
 - **Vendor driver system** abstracting all vendor-specific normalization out of the engine
 - **Structured parse tracing** — every parse attempt logged with full provenance
-- **ECharts dashboard** with CPU/memory gauges, trend chart, process table, interface list, log viewer, BGP peers, LLDP neighbor graph
+- **ECharts dashboard** with CPU/memory gauges, throughput chart (per-interface selector, auto-scaling), CDP neighbor force-directed graph, process table, interface status table, trend chart, log viewer
 - **Embeddable widget** — runs standalone or as an nterm tab
 - **Custom template override** — local TextFSM templates in `templates/textfsm/` shadow NTC templates when they break
 
@@ -28,7 +29,9 @@ The design language is deliberate: dark background, monospace type, scanline ove
 
 3. **Driver auto-discovery.** Drop a `.py` file in `drivers/` with a `@register_driver("vendor_id")` decorator. It registers automatically via `pkgutil` on import. No manual wiring.
 
-4. **Dashboard is decoupled.** The HTML/JS knows nothing about vendors, parsers, or SSH. It receives normalized JSON over QWebChannel and renders it. The data contracts are implicit today but will be schema-driven.
+4. **Dashboard is decoupled.** The HTML/JS knows nothing about vendors, parsers, or SSH. It receives normalized JSON over QWebChannel and renders it. The data contracts are defined by collection schemas and the normalize maps in YAML.
+
+5. **Collection system scales cleanly.** Adding `interface_detail` and `neighbors` required zero engine changes and zero driver framework changes — just YAML configs, a driver post-process method, and a JS handler function.
 
 ## Target State (demo.html Vision)
 
@@ -40,58 +43,68 @@ The mockup in `demo.html` represents the full design target. Here's the gap anal
 |-------|------|---------|---------------|
 | CPU gauge | ✓ | ✓ | — |
 | Memory gauge | ✓ | ✓ | — |
+| Top processes | PID, name, CPU%, MEM, runtime | ✓ (PID, name, CPU%, MEM) | Add runtime column (data already in TextFSM output) |
+| CPU/Memory trend | 24hr line chart | ✓ (6hr) | Extend history depth |
+| Interface throughput | Aggregate + per-interface area chart | ✓ | — |
+| CDP/LLDP neighbors | Force-directed graph with port labels | ✓ | — |
+| Interface status | Name, status, protocol, IP | ✓ | — |
+| Device log | Newest-first syslog viewer | ✓ | — |
 | **Environment sensors** | PSU temps, fan RPM, inlet/outlet/CPU die | — | New collection: `environment`. Vendor configs for `show environment all`. Horizontal bar chart panel in dashboard. |
-| **Throughput (6hr)** | Aggregate in/out area chart, per-interface selectable | Basic stub | New collection: `interface_detail` using `show interfaces`. Parse counters, compute delta rates. Dashboard needs time-series storage and area chart with interface selector. |
-| Top processes | PID, name, CPU%, MEM, runtime | ✓ (PID, name, CPU%, MEM) | Add runtime column. Already in TextFSM output (`process_runtime`), just needs aliasing in driver and column in dashboard. |
-| CPU/Memory trend | 24hr line chart | ✓ | Extend history depth. Currently limited by state store ring buffer. |
-| LLDP neighbors | Force-directed graph with port labels | Partial | Collection exists in dashboard. Need `show lldp neighbors detail` + `show cdp neighbors detail` collection configs. |
-| **Interface table (full)** | Name, status, protocol, IP, speed, MTU, in/out Mbps, utilization bars, error counts, description | Basic (name, status, protocol, IP) | Needs `interface_detail` collection. Dashboard table needs speed, MTU, throughput, utilization bar, errors, description columns. |
-| BGP peers | Neighbor, AS, state, up/down, prefixes rcvd/sent, description | Partial (neighbor, AS, state, prefixes) | Add up/down timer, description columns. May need `show ip bgp neighbors` for description field. |
-| **Interface errors** | Stacked bar chart (CRC, Input, Drops per interface) | — | New collection: parse error counters from `show interfaces`. New dashboard panel with horizontal stacked bar chart. |
+| **Interface table (full)** | Speed, MTU, utilization bars, errors, description | Basic (name, status, protocol, IP) | Dashboard table enhancement using `interface_detail` data (already collected) |
+| **Interface errors** | Stacked bar chart (CRC, Input, Drops per interface) | — | Dashboard panel using `interface_detail` data (already collected) |
+| **BGP/Routing** | Peer table, state, prefixes | Data collected, no panel | Planned as separate routing module |
 
 ### Info Strip Enrichment
 
 The demo's info strip shows: mgmt IP, loopback0, AS number, BGP peer count summary, SNMP config, location, chassis temp. This requires a `device_info` collection that runs once at connect (interval: 0) and pulls from `show version`, `show inventory`, `show running-config | include snmp|location`.
 
-### Data Pipeline Gaps
+### Remaining Data Pipeline Gaps
 
-1. **Rate calculation.** Interface throughput requires delta computation — store previous counter value, compute bytes/sec between polls. This is a state store enhancement, not a parser concern.
+1. **Counter-based rate calculation (deferred).** The current throughput implementation uses IOS 5-minute exponentially weighted average rates from `show interfaces`. This is accurate with `load-interval 30` and avoids counter-wrap complexity. True delta computation is a future enhancement — the `state_store` parameter is already wired to drivers but unused for `interface_detail`.
 
 2. **History depth.** The 24-hour trend chart needs ~2,880 data points at 30-second intervals. Current ring buffer size is configurable but needs validation at that depth.
 
-3. **Interface selector.** The throughput chart in the demo supports per-interface selection. The dashboard needs a dropdown or click-to-filter interaction bound to the interface list.
-
 ## Roadmap
 
-### Phase 1: Parity (Current)
-- [x] Core 5 collections working with parser chain
+### Phase 1: Core Collections ✓ Complete
+- [x] Core 5 collections working with parser chain (cpu, memory, interfaces, log, bgp_summary)
 - [x] Vendor driver system with auto-discovery
 - [x] Parse trace logging
 - [x] Custom template override support
-- [ ] Fix interface name column (normalize map)
-- [ ] Add `_schema.yaml` for log collection
+- [x] Fix interface name column (normalize map: `name: interface`)
+- [x] Add `_schema.yaml` for log collection
+- [x] `interface_detail` collection: `show interfaces` → rates, bandwidth, errors, description
+- [x] Dashboard: throughput area chart with auto-scaling and per-interface selector
+- [x] `neighbors` collection: `show cdp neighbors detail` → force-directed graph
+- [x] Dashboard: CDP neighbor graph with router/switch shapes, interface labels, mgmt IP
+- [x] Log viewer: newest-first ordering fix
+- [x] BGP panel removed (routing module planned separately)
 - [ ] Process table: add runtime column
 
-### Phase 2: Interface Detail
-- [ ] `interface_detail` collection: `show interfaces` → speed, MTU, counters, description, errors
-- [ ] Rate calculation in state store (delta counters between polls)
-- [ ] Dashboard: full interface table with utilization bars and error counts
-- [ ] Dashboard: throughput area chart with interface selector
-- [ ] Dashboard: interface errors stacked bar panel
-
-### Phase 3: Environment & Device Info
+### Phase 2: Environment & Device Info
 - [ ] `environment` collection: `show environment all` → PSU, fans, temps
 - [ ] Dashboard: environment sensors horizontal bar chart
 - [ ] `device_info` collection (one-shot): uptime, serial, software version, location
 - [ ] Info strip enrichment: AS, SNMP, location, chassis temp
 
-### Phase 4: Multi-Vendor
+### Phase 3: Dashboard Enhancements
+- [ ] Enhanced interface table using `interface_detail` data (speed, MTU, utilization bars, errors)
+- [ ] Interface errors stacked bar panel (data already in `interface_detail`)
+- [ ] Counter-based delta rate calculation (optional, enhances throughput accuracy)
+
+### Phase 4: Routing Module
+- [ ] BGP peer table as separate dashboard view or nterm tab
+- [ ] Route table summary
+- [ ] Prefix count trends
+- [ ] OSPF neighbor/topology (stretch)
+
+### Phase 5: Multi-Vendor Validation
 - [ ] Arista EOS collection configs + driver validation
-- [ ] Juniper JunOS collection configs + driver validation  
+- [ ] Juniper JunOS collection configs + driver validation
 - [ ] NX-OS collection configs + driver validation
 - [ ] Vendor-specific template overrides where NTC templates fail
 
-### Phase 5: nterm Integration
+### Phase 6: nterm Integration
 - [ ] Embedded telemetry tab in nterm session
 - [ ] Auth provider that uses nterm's credential resolver
 - [ ] Telemetry auto-start on device connection (optional)

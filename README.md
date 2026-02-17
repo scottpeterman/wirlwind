@@ -4,13 +4,15 @@ Real-time network device telemetry dashboard. SSH into a device, poll CLI comman
 
 Built for network engineers who need to see what a device is doing *right now* — not what a monitoring system polled 5 minutes ago.
 
-![Wirlwind Telemetry Dashboard](screenshots/Screenshot%20from%202026-02-15%2005-35-50.png)
 
 ## What It Does
 
-Wirlwind connects to a network device over SSH, runs vendor-specific CLI commands (`show processes cpu sorted`, `show ip interface brief`, etc.), parses the output into structured data, and drives a live HTML dashboard rendered in a QWebEngine panel. Everything updates on a configurable poll schedule — CPU and memory every 30 seconds, interfaces every 60, neighbors every 5 minutes.
+Wirlwind connects to a network device over SSH, runs vendor-specific CLI commands (`show processes cpu sorted`, `show interfaces`, `show cdp neighbors detail`, etc.), parses the output into structured data, and drives a live HTML dashboard rendered in a QWebEngine panel. Everything updates on a configurable poll schedule — CPU and memory every 30 seconds, interfaces every 60, neighbors every 5 minutes.
 
 The dashboard runs either standalone (own window) or embedded as a tab in [nterm](https://github.com/scottpeterman/nterm), a PyQt6 SSH terminal with network tooling integration.
+
+
+![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/screenshots/sample1.png)
 
 ## Architecture
 
@@ -87,13 +89,13 @@ widget.start(target)
 
 ## Supported Vendors
 
-| Vendor ID | Platform | Driver |
-|-----------|----------|--------|
-| `cisco_ios` | Cisco IOS 15.x | `CiscoIOSDriver` |
-| `cisco_ios_xe` | Cisco IOS-XE 16.x/17.x | `CiscoIOSDriver` |
-| `cisco_nxos` | Cisco NX-OS | `CiscoNXOSDriver` |
-| `arista_eos` | Arista EOS | `AristaEOSDriver` |
-| `juniper_junos` | Juniper JunOS | `JuniperJunOSDriver` |
+| Vendor ID | Platform | Driver | Collection Coverage |
+|-----------|----------|--------|---------------------|
+| `cisco_ios` | Cisco IOS 15.x | `CiscoIOSDriver` | Full (7 collections) |
+| `cisco_ios_xe` | Cisco IOS-XE 16.x/17.x | `CiscoIOSDriver` | Full (7 collections) |
+| `cisco_nxos` | Cisco NX-OS | `CiscoNXOSDriver` | Partial |
+| `arista_eos` | Arista EOS | `AristaEOSDriver` | Partial |
+| `juniper_junos` | Juniper JunOS | `JuniperJunOSDriver` | Partial |
 
 Adding a vendor requires only a new driver file in `drivers/` and collection YAML configs — no engine changes.
 
@@ -103,16 +105,29 @@ Each collection is a directory under `collections/` containing:
 - Per-vendor YAML configs (command, parsers, normalize map)
 - A `_schema.yaml` defining canonical fields and types
 
-| Collection | Command (IOS-XE) | Interval | Status |
-|------------|-------------------|----------|--------|
-| `cpu` | `show processes cpu sorted` | 30s | ✓ Working |
-| `memory` | `show processes memory sorted` | 30s | ✓ Working |
-| `interfaces` | `show ip interface brief` | 60s | ✓ Working |
-| `log` | `show logging` | 30s | ✓ Working |
-| `bgp_summary` | `show ip bgp summary` | 60s | ✓ Working |
-| `neighbors` | `show lldp neighbors detail` | 300s | Planned |
+| Collection | Command (IOS/IOS-XE) | Interval | Dashboard Panel |
+|------------|----------------------|----------|-----------------|
+| `cpu` | `show processes cpu sorted` | 30s | CPU gauge + process table |
+| `memory` | `show processes memory sorted` | 30s | Memory gauge |
+| `interfaces` | `show ip interface brief` | 60s | Interface status table |
+| `interface_detail` | `show interfaces` | 60s | Throughput chart (per-interface selector) |
+| `log` | `show logging` | 30s | Device log viewer |
+| `neighbors` | `show cdp neighbors detail` | 300s | CDP/LLDP force-directed graph |
+| `bgp_summary` | `show ip bgp summary` | 60s | Collected but no dashboard panel (routing module planned) |
 | `environment` | `show environment all` | 120s | Planned |
-| `interface_detail` | `show interfaces` | 60s | Planned |
+
+## Dashboard Panels
+
+| Panel | Data Source | Features |
+|-------|-----------|----------|
+| **CPU Utilization** | `cpu` | ECharts gauge, green/amber/red zones, 5-min average badge |
+| **Memory Utilization** | `memory` | ECharts gauge, used/total MB readout |
+| **Top Processes** | `cpu` | Sortable table: PID, name, CPU%, MEM |
+| **Interface Throughput** | `interface_detail` | Area chart with auto-scaling (bps/Kbps/Mbps), dropdown to filter by interface or aggregate all |
+| **LLDP/CDP Neighbors** | `neighbors` | Force-directed graph: routers (cyan roundRect), switches (green rect). Edge labels show both local and remote interfaces. Hover for platform, mgmt IP, capabilities |
+| **CPU & Memory Trend** | `cpu` + `memory` history | Dual-line chart, 6-hour rolling window |
+| **Device Log** | `log` | Newest-first syslog entries, severity-colored mnemonics, warning count badge |
+| **Interface Status** | `interfaces` | Table: interface, status, protocol, IP address, up/down/admin-down count badge |
 
 ## Custom Templates
 
@@ -136,6 +151,8 @@ Run with `--debug` for full parse trace output:
 TRACE [cpu] parsed_by=textfsm rows=47 fields=5 duration=12.3ms
 TRACE [memory] parsed_by=textfsm rows=1 fields=8 duration=8.1ms
 TRACE [interfaces] parsed_by=textfsm rows=15 fields=6 duration=5.2ms
+TRACE [interface_detail] parsed_by=textfsm rows=15 fields=43 duration=18.7ms
+TRACE [neighbors] parsed_by=textfsm rows=3 fields=7 duration=4.1ms
 ```
 
 When a parser fails, the trace shows exactly why:
@@ -171,7 +188,9 @@ wirlwind_telemetry/
 │   ├── cpu/
 │   ├── memory/
 │   ├── interfaces/
+│   ├── interface_detail/
 │   ├── log/
+│   ├── neighbors/
 │   └── bgp_summary/
 ├── templates/
 │   └── textfsm/             # Custom TextFSM overrides

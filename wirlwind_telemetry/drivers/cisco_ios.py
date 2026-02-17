@@ -6,9 +6,12 @@ Handles the field normalization quirks specific to IOS and IOS-XE:
     which need mapping to the dashboard's five_sec_total / one_min / five_min
   - Memory: NTC template returns parallel lists (process_id, process_holding)
   - Processes: Filter idle, add dashboard aliases, merge memory holdings
+  - Interface Detail: Parse bandwidth string, ensure rate fields are numeric,
+    compute utilization percentage
 """
 
 from __future__ import annotations
+import re
 import logging
 from typing import TYPE_CHECKING
 
@@ -27,6 +30,10 @@ if TYPE_CHECKING:
     from ..state_store import DeviceStateStore
 
 logger = logging.getLogger(__name__)
+
+# Regex to extract numeric Kbps from NTC bandwidth field
+# Matches: "1000000 Kbit", "100000 Kbit/sec", "1000000Kbit"
+_BW_PATTERN = re.compile(r'(\d+)\s*[Kk]')
 
 
 @register_driver("cisco_ios", "cisco_ios_xe")
@@ -55,6 +62,7 @@ class CiscoIOSDriver(VendorDriver):
         Memory: compute used_pct.
         Log: assemble timestamps, trim.
         BGP: normalize state/prefix fields.
+        Interface Detail: parse bandwidth, ensure numeric rates, compute utilization.
         """
         if collection == "cpu":
             data = self._normalize_cpu(data)
@@ -71,7 +79,83 @@ class CiscoIOSDriver(VendorDriver):
         elif collection == "bgp_summary" and "peers" in data:
             data["peers"] = _normalize_bgp_peers(data["peers"])
 
+        elif collection == "interface_detail" and "interfaces" in data:
+            data["interfaces"] = self._post_process_interfaces(
+                data["interfaces"]
+            )
+
         return data
+
+    # ── Interface Detail ─────────────────────────────────────────
+
+    @staticmethod
+    def _post_process_interfaces(interfaces: list[dict]) -> list[dict]:
+        """
+        Post-process interface detail rows.
+
+        1. Parse bandwidth string ("1000000 Kbit") → numeric bandwidth_kbps
+        2. Ensure input_rate_bps / output_rate_bps are int
+        3. Ensure error counts are int
+        4. Compute utilization_pct if bandwidth is known
+        """
+        for intf in interfaces:
+            # ── Parse bandwidth ──────────────────────────────────
+            bw_raw = intf.get("bandwidth_raw") or intf.get("bandwidth") or ""
+            bw_kbps = 0
+            if bw_raw:
+                m = _BW_PATTERN.search(str(bw_raw))
+                if m:
+                    bw_kbps = int(m.group(1))
+            intf["bandwidth_kbps"] = bw_kbps
+
+            # ── Ensure rate fields are int ───────────────────────
+            for field in ("input_rate_bps", "output_rate_bps"):
+                val = intf.get(field)
+                if val is not None:
+                    try:
+                        intf[field] = int(val)
+                    except (ValueError, TypeError):
+                        intf[field] = 0
+                else:
+                    intf[field] = 0
+
+            # ── Ensure error counts are int ──────────────────────
+            for field in ("in_errors", "out_errors", "crc_errors"):
+                val = intf.get(field)
+                if val is not None:
+                    try:
+                        intf[field] = int(val)
+                    except (ValueError, TypeError):
+                        intf[field] = 0
+                else:
+                    intf[field] = 0
+
+            # ── Ensure MTU is int ────────────────────────────────
+            mtu = intf.get("mtu")
+            if mtu is not None:
+                try:
+                    intf["mtu"] = int(mtu)
+                except (ValueError, TypeError):
+                    intf["mtu"] = 0
+
+            # ── Compute utilization percentage ───────────────────
+            # Utilization = max(in, out) / bandwidth * 100
+            if bw_kbps > 0:
+                bw_bps = bw_kbps * 1000
+                peak_bps = max(intf["input_rate_bps"], intf["output_rate_bps"])
+                intf["utilization_pct"] = round(
+                    (peak_bps / bw_bps) * 100, 1
+                )
+            else:
+                intf["utilization_pct"] = 0.0
+
+            # ── Clean up intermediate fields ─────────────────────
+            # Remove the raw bandwidth string — dashboard uses bandwidth_kbps
+            intf.pop("bandwidth_raw", None)
+
+        return interfaces
+
+    # ── CPU ───────────────────────────────────────────────────────
 
     @staticmethod
     def _normalize_cpu(data: dict) -> dict:

@@ -1,23 +1,49 @@
-# Interface status - Cisco IOS / IOS-XE
-command: "show ip interface brief"
+# Interface Detail collection - Cisco IOS / IOS-XE
+#
+# Full interface statistics from 'show interfaces'.
+# Unlocks: throughput chart, full interface table, interface errors panel.
+#
+# NTC TextFSM returns (lowercased):
+#   interface, link_status, protocol_status, description, ip_address,
+#   mtu, bandwidth ("1000000 Kbit"), speed ("1000Mbps"),
+#   input_rate (bps), output_rate (bps), input_pps, output_pps,
+#   input_errors, output_errors, crc, runts, giants, ...
+#
+# NOTE: input_rate / output_rate are the IOS 5-minute weighted averages
+#       in bits/sec — already rate-computed by the device. No delta math
+#       needed for v1. Counter-based delta calculation can come later for
+#       more accurate short-interval rates.
+#
+# NTC template: cisco_ios_show_interfaces.textfsm
+
+command: "show interfaces"
 interval: 60
 
 parsers:
+  # Priority 1: NTC TextFSM (returns full per-interface rows)
   - type: textfsm
     templates:
-      - cisco_ios_show_ip_interface_brief.textfsm
+      - cisco_ios_show_interfaces.textfsm
 
+  # Priority 2: regex fallback — captures rate lines only
+  # Less data than TextFSM, but keeps the throughput chart alive
   - type: regex
-    pattern: '^(\S+)\s+([\d.]+|unassigned)\s+\w+\s+\w+\s+((?:administratively )?(?:up|down))\s+(up|down)\s*$'
-    flags: MULTILINE
-    groups:
-      intf: 1
-      ipaddr: 2
-      status: 3
-      proto: 4
+    pattern: '(?P<interface>\S+) is (?P<link_status>up|down|administratively down), line protocol is (?P<protocol_status>up|down).*?5 minute input rate (?P<input_rate>\d+) bits/sec.*?5 minute output rate (?P<output_rate>\d+) bits/sec'
+    flags: DOTALL
 
+# Map parser output → dashboard field names
+# Dashboard JS expects: name, status, protocol, input_rate_bps, output_rate_bps
 normalize:
-  name: intf
-  ip_address: ipaddr
-  status: status
-  protocol: proto
+  name: interface
+  status: link_status
+  protocol: protocol_status
+  input_rate_bps: input_rate
+  output_rate_bps: output_rate
+  in_errors: input_errors
+  out_errors: output_errors
+  crc_errors: crc
+  description: description
+  ip_address: ip_address
+  mtu: mtu
+  bandwidth_raw: bandwidth
+  speed: speed
