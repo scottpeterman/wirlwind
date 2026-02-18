@@ -13,7 +13,7 @@ The dashboard runs standalone (own window) or embedded as a tab in [nterm](https
 
 
 ![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/refs/heads/main/screenshots/sample2.png)
-![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/refs/heads/main/screenshots/sample3.png)
+![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/refs/heads/main/screenshots/sample_light.png)
 
 
 ## Architecture
