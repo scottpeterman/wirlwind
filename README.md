@@ -49,6 +49,7 @@ The dashboard runs standalone (own window) or embedded as a tab in [nterm](https
 | **Dashboard** | `dashboard/index.html` | Single-file ECharts dashboard, receives JSON updates via QWebChannel |
 | **Widget** | `widget.py` | Top-level PyQt6 widget that wires everything together |
 | **SSH Client** | `ssh_client.py` | Paramiko wrapper with legacy cipher support, ANSI filtering, and prompt detection |
+| **Client** | `client.py` | High-level client API |
 
 ## Quickstart
 
@@ -109,9 +110,6 @@ Each collection is a directory under `collections/` containing per-vendor YAML c
 | `interface_detail` | `show interfaces` | 60s | Throughput chart (per-interface selector, auto-scaling bps→Kbps→Mbps→Gbps) |
 | `neighbors` | `show cdp neighbors detail` | 300s | CDP/LLDP force-directed topology graph |
 | `log` | `show logging` | 30s | Device log viewer with severity coloring |
-| `cpu` | `show processes cpu sorted` | 30s | Collected for history/trending (no dashboard panel) |
-| `memory` | `show processes memory sorted` | 30s | Collected for history/trending (no dashboard panel) |
-| `bgp_summary` | `show ip bgp summary` | 60s | Collected but no dashboard panel (routing module planned) |
 
 ## Dashboard Panels
 
@@ -124,7 +122,7 @@ The dashboard is built around four operational panels — the things you actuall
 | **Interface Status** | `interfaces` | Full interface table: name, description, status. Color-coded up/down/admin-down with count badge |
 | **Device Log** | `log` | Newest-first syslog entries, severity-colored facility/mnemonic tags, warning count badge. Raw text fallback if structured parsing fails — the panel always shows something |
 
-CPU and memory data is still collected for backend trending but the gauges have been removed from the default dashboard layout. During an outage, throughput/state/topology/logs are what matter.
+Four collections, four panels — each one earning its screen space during an incident.
 
 ## Log Resilience
 
@@ -174,6 +172,7 @@ The dashboard's `{ }` debug buttons (on each panel header) dump the current stat
 
 ```
 wirlwind_telemetry/
+├── __init__.py
 ├── __main__.py              # CLI launcher + preflight checks
 ├── poll_engine.py           # SSH poll loop (vendor-agnostic)
 ├── parser_chain.py          # TextFSM → TTP → regex fallback chain
@@ -182,6 +181,7 @@ wirlwind_telemetry/
 ├── bridge.py                # QWebChannel Python↔JS bridge
 ├── state_store.py           # In-memory state + history
 ├── ssh_client.py            # Paramiko wrapper (legacy ciphers, ANSI filter)
+├── client.py                # High-level client API
 ├── auth_interface.py        # Auth provider abstraction
 ├── drivers/                 # Vendor-specific behavior
 │   ├── __init__.py          # Base driver + registry + shared transforms
@@ -189,21 +189,48 @@ wirlwind_telemetry/
 │   ├── cisco_nxos.py        # Cisco NX-OS
 │   ├── arista_eos.py        # Arista EOS
 │   └── juniper_junos.py     # Juniper JunOS
-├── collections/             # Collection configs (YAML)
-│   ├── interfaces/
+├── collections/             # Collection configs (YAML per vendor + schema)
 │   ├── interface_detail/
-│   ├── neighbors/
+│   │   ├── arista_eos.yaml
+│   │   ├── cisco_ios.yaml
+│   │   ├── cisco_ios_xe.yaml
+│   │   ├── juniper_junos.yaml
+│   │   └── _schema.yaml
+│   ├── interfaces/
+│   │   ├── arista_eos.yaml
+│   │   ├── cisco_ios.yaml
+│   │   ├── cisco_ios_xe.yaml
+│   │   ├── juniper_junos.yaml
+│   │   └── _schema.yaml
 │   ├── log/
-│   ├── cpu/
-│   ├── memory/
-│   └── bgp_summary/
+│   │   ├── arista_eos.yaml
+│   │   ├── cisco_ios.yaml
+│   │   ├── cisco_ios_xe.yaml
+│   │   ├── juniper_junos.yaml
+│   │   └── _schema.yaml
+│   └── neighbors/
+│       ├── arista_eos.yaml
+│       ├── cisco_ios.yaml
+│       ├── cisco_ios_xe.yaml
+│       ├── juniper_junos.yaml
+│       └── _schema.yaml
 ├── templates/
-│   └── textfsm/             # Custom TextFSM overrides
+│   └── textfsm/             # Custom TextFSM overrides (searched before ntc-templates)
+│       ├── arista_eos_show_interfaces.textfsm
+│       ├── arista_eos_show_processes_top_once.textfsm
+│       ├── cisco_ios_show_processes_memory_sorted.textfsm
+│       ├── juniper_junos_show_chassis_routing-engine.textfsm
+│       ├── juniper_junos_show_interfaces_descriptions.textfsm
+│       ├── juniper_junos_show_interfaces_detail.textfsm
+│       ├── juniper_junos_show_interfaces_terse.textfsm
+│       ├── juniper_junos_show_lldp_neighbors.textfsm
+│       ├── juniper_junos_show_lldp_neighbors_detail.textfsm
+│       ├── juniper_junos_show_log_messages.textfsm
+│       └── juniper_junos_show_system_processes_extensive.textfsm
 ├── dashboard/
 │   └── index.html           # ECharts dashboard (single file)
-└── __init__.py
 ```
 
 ## License
 
-[TBD]
+GPLv3 — required by PyQt6 dependency.
