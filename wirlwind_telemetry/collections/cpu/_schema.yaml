@@ -1,6 +1,0 @@
-description: CPU utilization summary and top processes
-fields:
-  five_sec:         { type: float, description: "CPU % over last 5 seconds" }
-  one_min:          { type: float, description: "CPU % over last 1 minute" }
-  five_min:         { type: float, description: "CPU % over last 5 minutes" }
-  processes:        { type: list,  description: "Top processes by CPU" }

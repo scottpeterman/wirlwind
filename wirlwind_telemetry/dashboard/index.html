@@ -126,6 +126,9 @@ body::after {
 .tall { min-height:310px; }
 .tall .panel-body { min-height:280px; }
 
+/* Hidden top-row panels */
+.panel-hidden { display: none !important; }
+
 /* JSON Debug button */
 .debug-btn {
   background: transparent;
@@ -372,8 +375,8 @@ body::after {
 </div>
 
 <div class="dashboard">
-  <!-- CPU Gauge -->
-  <div class="panel" data-collection="cpu">
+  <!-- CPU Gauge (hidden) -->
+  <div class="panel panel-hidden" data-collection="cpu" style="align-items:flex-start;padding:0;">
     <div class="panel-header green">
       <span class="panel-title">CPU Utilization</span>
       <div class="panel-header-right">
@@ -384,8 +387,8 @@ body::after {
     <div class="panel-body"><div class="chart-container" id="cpuGauge"></div></div>
   </div>
 
-  <!-- Memory Gauge -->
-  <div class="panel" data-collection="memory">
+  <!-- Memory Gauge (hidden) -->
+  <div class="panel panel-hidden" data-collection="memory" style="align-items:flex-start;padding:0;">
     <div class="panel-header amber">
       <span class="panel-title">Memory Utilization</span>
       <div class="panel-header-right">
@@ -396,8 +399,8 @@ body::after {
     <div class="panel-body"><div class="chart-container" id="memGauge"></div></div>
   </div>
 
-  <!-- Top Processes -->
-  <div class="panel" data-collection="processes">
+  <!-- Top Processes (hidden) -->
+  <div class="panel panel-hidden" data-collection="processes">
     <div class="panel-header green">
       <span class="panel-title">Top Processes</span>
       <div class="panel-header-right">
@@ -437,8 +440,8 @@ body::after {
     <div class="panel-body"><div class="chart-container" id="neighborGraph"></div></div>
   </div>
 
-  <!-- CPU/Memory Trend -->
-  <div class="panel span-2 tall" data-collection="history">
+  <!-- CPU/Memory Trend (hidden) -->
+  <div class="panel panel-hidden span-2 tall" data-collection="history">
     <div class="panel-header purple">
       <span class="panel-title">CPU &amp; Memory Trend</span>
       <div class="panel-header-right">
@@ -446,22 +449,6 @@ body::after {
       </div>
     </div>
     <div class="panel-body"><div class="chart-container" id="historyChart"></div></div>
-  </div>
-
-  <!-- Log View -->
-  <div class="panel tall" data-collection="log">
-    <div class="panel-header red">
-      <span class="panel-title">Device Log</span>
-      <div class="panel-header-right">
-        <button class="debug-btn" onclick="showDebug('log')" title="Inspect parsed data">{ }</button>
-        <span class="panel-badge badge-none" id="logBadge">—</span>
-      </div>
-    </div>
-    <div class="panel-body" style="align-items:flex-start;padding:0;">
-      <div class="table-scroll" style="max-height:280px;" id="logContainer">
-        <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
-      </div>
-    </div>
   </div>
 
   <!-- Interface Table -->
@@ -475,6 +462,22 @@ body::after {
     </div>
     <div class="panel-body" style="align-items:flex-start;padding:0;">
       <div class="table-scroll" style="max-height:260px;width:100%;" id="intfContainer">
+        <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log View -->
+  <div class="panel span-3 tall" data-collection="log">
+    <div class="panel-header red">
+      <span class="panel-title">Device Log</span>
+      <div class="panel-header-right">
+        <button class="debug-btn" onclick="showDebug('log')" title="Inspect parsed data">{ }</button>
+        <span class="panel-badge badge-none" id="logBadge">—</span>
+      </div>
+    </div>
+    <div class="panel-body" style="align-items:flex-start;padding:0;">
+      <div class="table-scroll" style="max-height:280px;" id="logContainer">
         <div class="waiting"><div class="spinner"></div><br>Waiting for data</div>
       </div>
     </div>
@@ -541,21 +544,32 @@ let totalCycles = 0;
 // ── Chart initialization ───────────────────────────────────────────
 
 function initCharts() {
-  charts.cpu = echarts.init(document.getElementById('cpuGauge'));
-  charts.mem = echarts.init(document.getElementById('memGauge'));
+  // Only init charts whose containers exist and are visible
+  const cpuEl = document.getElementById('cpuGauge');
+  const memEl = document.getElementById('memGauge');
+  if (cpuEl && cpuEl.offsetParent !== null) {
+    charts.cpu = echarts.init(cpuEl);
+    charts.cpu.setOption(gaugeOption(0, '—'));
+  }
+  if (memEl && memEl.offsetParent !== null) {
+    charts.mem = echarts.init(memEl);
+    charts.mem.setOption(gaugeOption(0, '—'));
+  }
+
   charts.throughput = echarts.init(document.getElementById('throughputChart'));
   charts.neighbor = echarts.init(document.getElementById('neighborGraph'));
-  charts.history = echarts.init(document.getElementById('historyChart'));
 
-  // CPU Gauge
-  charts.cpu.setOption(gaugeOption(0, '—'));
-  charts.mem.setOption(gaugeOption(0, '—'));
+  const histEl = document.getElementById('historyChart');
+  if (histEl && histEl.offsetParent !== null) {
+    charts.history = echarts.init(histEl);
+  }
 
   // Throughput (empty)
   charts.throughput.setOption(areaChartOption([], [], [], 'Mbps'));
 
-  // History (empty)
-  charts.history.setOption({
+  // History (empty — only if visible)
+  if (charts.history) {
+    charts.history.setOption({
     tooltip: { trigger:'axis', backgroundColor:'#151d27', borderColor:'#2a3a4e', textStyle:{color:'#c8d6e5',fontFamily:'Share Tech Mono',fontSize:11} },
     legend: { data:['CPU %','Memory %'], textStyle:{color:'#6b7d93',fontFamily:'Share Tech Mono',fontSize:10}, top:5, right:10 },
     grid: { left:50, right:20, top:40, bottom:30 },
@@ -566,6 +580,7 @@ function initCharts() {
       { name:'Memory %', type:'line', data:[], smooth:true, showSymbol:false, lineStyle:{color:'#ffab00',width:1.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(255,171,0,0.12)'},{offset:1,color:'rgba(255,171,0,0)'}]}} }
     ]
   });
+  } // end if (charts.history)
 
   // Neighbor graph (empty)
   charts.neighbor.setOption({
@@ -614,7 +629,9 @@ function areaChartOption(timestamps, series1, series2, yName) {
 
 function updateCPU(data) {
   const val = data.five_min || data.five_sec_total || data.one_min || 0;
-  charts.cpu.setOption({ series:[{data:[{value:Math.round(val), name:'5-MIN AVG'}]}] });
+  if (charts.cpu) {
+    charts.cpu.setOption({ series:[{data:[{value:Math.round(val), name:'5-MIN AVG'}]}] });
+  }
   const badge = document.getElementById('cpuBadge');
   if (val > 80) { badge.className='panel-badge badge-crit'; badge.textContent='CRITICAL'; }
   else if (val > 60) { badge.className='panel-badge badge-warn'; badge.textContent='ELEVATED'; }
@@ -629,12 +646,14 @@ function updateMemory(data) {
   const subtitle = (data.used_display && data.total_display)
     ? `${data.used_display} / ${data.total_display}` : `${val}%`;
   const color = val > 75 ? '#ffab00' : '#c8d6e5';
-  charts.mem.setOption({
-    series:[{
-      data:[{value:Math.round(val*10)/10, name:subtitle}],
-      detail:{color:color, textShadowColor: val>75 ? '#ffab0044' : 'transparent', textShadowBlur: val>75 ? 10 : 0}
-    }]
-  });
+  if (charts.mem) {
+    charts.mem.setOption({
+      series:[{
+        data:[{value:Math.round(val*10)/10, name:subtitle}],
+        detail:{color:color, textShadowColor: val>75 ? '#ffab0044' : 'transparent', textShadowBlur: val>75 ? 10 : 0}
+      }]
+    });
+  }
   const badge = document.getElementById('memBadge');
   if (val > 85) { badge.className='panel-badge badge-crit'; badge.textContent='CRITICAL'; }
   else if (val > 70) { badge.className='panel-badge badge-warn'; badge.textContent='ELEVATED'; }
@@ -702,7 +721,7 @@ function updateInterfaceDetail(data) {
   // Store per-interface rates for this timestamp
   const seen = new Set();
   intfs.forEach(i => {
-    const name = i.name || 'unknown';
+    const name = i.name || i.interface || 'unknown';
     seen.add(name);
     if (!throughputHistory.perInterface[name]) {
       // New interface — backfill with zeros so arrays align with timestamps
@@ -736,8 +755,9 @@ function updateInterfaceDetail(data) {
   // Update dropdown if new interfaces appeared
   let dropdownChanged = false;
   intfs.forEach(i => {
-    if (i.name && !knownInterfaces.has(i.name)) {
-      knownInterfaces.add(i.name);
+    const iName = i.name || i.interface;
+    if (iName && !knownInterfaces.has(iName)) {
+      knownInterfaces.add(iName);
       dropdownChanged = true;
     }
   });
@@ -913,6 +933,7 @@ function updateLog(data) {
 }
 
 function updateHistory(cpuHistory, memHistory) {
+  if (!charts.history) return;
   if (!cpuHistory.length && !memHistory.length) return;
 
   const timestamps = cpuHistory.map(h => {

@@ -1,0 +1,41 @@
+# collections/interface_detail/juniper_junos.yaml
+# Interface detail collection - Juniper JunOS
+#
+# Full interface statistics including rates, errors, bandwidth, MTU.
+# Uses "show interfaces" with a custom TextFSM template that captures
+# rate and error fields that the NTC template ignores.
+#
+# Custom template returns (lowercased):
+#   interface, admin_state, link_status, description, mtu, speed,
+#   input_rate, output_rate, input_errors, output_errors
+#
+# Notes:
+#   - JunOS rate fields are integer bps (no unit suffix like Arista)
+#   - Speed field (e.g. "1000mbps") → driver converts to bandwidth_kbps
+#   - NTC template listed as fallback gets basics but no rates
+#   - Only physical interfaces captured (Logical interface sections skipped)
+
+command: "show interfaces"
+interval: 60
+
+parsers:
+  # Priority 1: custom TextFSM with rate/error/speed captures
+  - type: textfsm
+    templates:
+      - juniper_junos_show_interfaces_detail.textfsm    # custom: rates + speed + errors
+      - juniper_junos_show_interfaces.textfsm            # NTC fallback: basics only
+
+  # Priority 2: regex fallback — captures rates per physical interface
+  - type: regex
+    pattern: 'Physical interface:\s+(?P<interface>\S+).*?Physical link is (?P<link_status>\w+).*?Input rate\s*:\s+(?P<input_rate>\d+)\s+bps.*?Output rate\s*:\s+(?P<output_rate>\d+)\s+bps'
+    flags: DOTALL
+
+normalize:
+  interface: interface
+  link_status: link_status
+  admin_state: admin_state
+  description: description
+  mtu: mtu
+  speed: speed
+  in_errors: input_errors
+  out_errors: output_errors

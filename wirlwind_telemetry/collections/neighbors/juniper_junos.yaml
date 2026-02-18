@@ -1,0 +1,52 @@
+# collections/neighbors/juniper_junos.yaml
+# Neighbor discovery collection - Juniper JunOS
+#
+# Uses "show lldp neighbors detail" for full neighbor information
+# including management address, system description, and capabilities
+# that the summary command lacks.
+#
+# Custom detail template returns (lowercased):
+#   local_interface, parent_interface, chassis_id, port_id,
+#   port_description, system_name, system_description,
+#   mgmt_address, capabilities
+#
+# The driver's _post_process_neighbors() handles:
+#   - FQDN stripping from device_id
+#   - Platform inference from system_description
+#   - Interface name shortening (GigabitEthernet → Gi, etc.)
+#   - Capabilities inference for graph node shapes
+#
+# Note on remote_intf: LLDP Port ID may be a numeric index (e.g. "507")
+# when the remote device uses "Locally assigned" port IDs. In those cases
+# port_description has the actual interface name. Consider enhancing the
+# driver to prefer port_description over numeric port_id for remote_intf.
+
+command: "show lldp neighbors detail"
+interval: 300
+
+parsers:
+  # Priority 1: custom TextFSM detail (mgmt, platform, capabilities)
+  - type: textfsm
+    templates:
+      - juniper_junos_show_lldp_neighbors_detail.textfsm
+
+  # Priority 2: resilient summary fallback (no mgmt/platform/caps)
+  - type: textfsm
+    templates:
+      - juniper_junos_show_lldp_neighbors.textfsm
+
+  # Priority 3: regex fallback
+  - type: regex
+    pattern: 'Local Interface\s+:\s+(?P<local_interface>\S+).*?System name\s+:\s+(?P<system_name>\S+).*?Port ID\s+:\s+(?P<port_id>\S+)'
+    flags: DOTALL
+
+# Map LLDP detail fields → dashboard field names
+# Dashboard updateNeighbors() expects: device_id, local_intf, remote_intf
+# Graph also uses: mgmt_ip, platform, capabilities
+normalize:
+  device_id: system_name
+  local_intf: local_interface
+  remote_intf: port_id
+  mgmt_ip: mgmt_address
+  neighbor_description: system_description
+  capabilities: capabilities

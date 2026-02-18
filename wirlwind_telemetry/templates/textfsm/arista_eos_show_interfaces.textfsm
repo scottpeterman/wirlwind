@@ -1,0 +1,57 @@
+# Custom TextFSM template for Arista EOS "show interfaces"
+#
+# Extends NTC template to capture rate and error fields.
+# Arista rate lines include "(X.X% with framing overhead)" which
+# NTC templates don't handle.
+#
+# Rate line formats:
+#   5 minutes input rate 47.7 kbps (0.0% with framing overhead), 7 packets/sec
+#   5 minutes input rate 649 Mbps (6.6% with framing overhead), 56242 packets/sec
+#   5 minutes input rate 0 bps (0.0% with framing overhead), 0 packets/sec
+Value Required INTERFACE (\S+)
+Value LINK_STATUS (\S+)
+Value PROTOCOL_STATUS (.+?)
+Value HARDWARE_TYPE (\S+)
+Value MAC_ADDRESS (\S+)
+Value BIA (\S+)
+Value DESCRIPTION (.*)
+Value IP_ADDRESS (\S+)
+Value MTU (\d+)
+Value BANDWIDTH (\d+\s+\S+)
+Value DUPLEX (\S+)
+Value SPEED (\S+)
+Value LAST_LINK_FLAPPED (.+?)
+Value LINK_STATUS_CHANGE (\d+)
+Value INPUT_RATE ([\d.]+\s+\S+)
+Value OUTPUT_RATE ([\d.]+\s+\S+)
+Value INPUT_RATE_PPS (\d+)
+Value OUTPUT_RATE_PPS (\d+)
+Value INPUT_PACKETS (\d+)
+Value OUTPUT_PACKETS (\d+)
+Value INPUT_ERRORS (\d+)
+Value OUTPUT_ERRORS (\d+)
+Value CRC (\d+)
+Value RUNTS (\d+)
+Value GIANTS (\d+)
+
+Start
+  ^\S+\s+is\s+ -> Continue.Record
+  ^${INTERFACE}\s+is\s+${LINK_STATUS},\s+line\s+protocol\s+is\s+${PROTOCOL_STATUS}\s*$$
+  ^${INTERFACE}\s+is\s+${LINK_STATUS},\s+line\s+protocol\s+is\s+${PROTOCOL_STATUS}
+  ^\s+Hardware\s+is\s+${HARDWARE_TYPE},\s+address\s+is\s+${MAC_ADDRESS}
+  ^\s+address\s+is\s+\S+\s+\(bia\s+${BIA}\)
+  ^\s+Description:\s+${DESCRIPTION}\s*$$
+  ^\s+Internet\s+address\s+is\s+${IP_ADDRESS}
+  ^\s+IP\s+MTU\s+${MTU}\s+bytes.*BW\s+${BANDWIDTH}bit
+  ^\s+Ethernet\s+MTU\s+${MTU}\s+bytes.*BW\s+${BANDWIDTH}bit
+  ^\s+${DUPLEX},\s+${SPEED},
+  ^\s+Up\s+${LAST_LINK_FLAPPED}\s*$$
+  ^\s+${LINK_STATUS_CHANGE}\s+link\s+status\s+change
+  ^\s+5\s+minutes\s+input\s+rate\s+${INPUT_RATE}\s+\(.*\),\s+${INPUT_RATE_PPS}\s+packets
+  ^\s+5\s+minutes\s+output\s+rate\s+${OUTPUT_RATE}\s+\(.*\),\s+${OUTPUT_RATE_PPS}\s+packets
+  ^\s+${INPUT_PACKETS}\s+packets\s+input
+  ^\s+${INPUT_ERRORS}\s+input\s+errors,\s+${CRC}\s+CRC
+  ^\s+${RUNTS}\s+runts,\s+${GIANTS}\s+giants
+  ^\s+${OUTPUT_PACKETS}\s+packets\s+output
+  ^\s+${OUTPUT_ERRORS}\s+output\s+errors
+  ^.

@@ -1,0 +1,28 @@
+# collections/interfaces/juniper_junos.yaml
+# Interface status table - Juniper JunOS
+#
+# Switched from "show interfaces terse" to "show interfaces descriptions"
+# to capture operationally critical descriptions like:
+#   TRANSIT::Arelion:AS1299
+#   CORE::agg469.iad2:Ethernet59/1
+#
+# The terse command has no description field at all.
+
+command: "show interfaces descriptions"
+interval: 60
+
+parsers:
+  - type: textfsm
+    templates:
+      - juniper_junos_show_interfaces_descriptions.textfsm
+
+  # Fallback: regex for minimal parsing
+  - type: regex
+    pattern: '^(?P<interface>\S+)\s+(?P<admin_state>up|down)\s+(?P<link_status>up|down)\s+(?P<description>.*)$'
+    flags: MULTILINE
+
+normalize:
+  interface: interface
+  status: admin_state
+  protocol: link_status
+  description: description

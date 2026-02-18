@@ -1,6 +1,0 @@
-description: Memory utilization
-fields:
-  total:            { type: int,   description: "Total memory bytes" }
-  used:             { type: int,   description: "Used memory bytes" }
-  free:             { type: int,   description: "Free memory bytes" }
-  used_pct:         { type: float, description: "Used memory percentage (0-100)" }

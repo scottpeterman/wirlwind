@@ -504,6 +504,20 @@ class SSHClient:
                 time.sleep(0.1)
                 continue
 
+            # ── Drain stale data before sending ──────────────────
+            # Between poll cycles, the channel may accumulate trailing
+            # bytes from the previous command (post-prompt newlines,
+            # late-arriving output fragments). Without draining, the
+            # next _wait_for_prompt() reads stale data first, finds
+            # the *previous* command's prompt, and returns immediately
+            # with garbage — causing a one-command offset desync where
+            # every collection parses the previous collection's output.
+            stale = self._drain_output()
+            if stale:
+                logger.debug(
+                    f"Drained {len(stale)} bytes of stale data before '{cmd}'"
+                )
+
             logger.debug(f"Sending: {cmd}")
             self._shell.send(cmd + '\n')
 
@@ -534,6 +548,13 @@ class SSHClient:
 
                 if prompt in output:
                     logger.debug("Prompt detected in output")
+                    # Brief settle: some devices send trailing bytes
+                    # (newlines, control chars) after the prompt.
+                    # Capture them now instead of leaving them to
+                    # poison the next command's buffer.
+                    time.sleep(0.05)
+                    if self._shell.recv_ready():
+                        output += self._recv_filtered()
                     return output
 
             time.sleep(0.01)

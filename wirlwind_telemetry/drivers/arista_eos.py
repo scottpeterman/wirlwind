@@ -32,6 +32,19 @@ logger = logging.getLogger(__name__)
 # Regex to extract numeric Kbps from bandwidth field
 _BW_PATTERN = re.compile(r'(\d+)\s*[Kk]')
 
+# Rate string patterns: "1234 bps", "1.23 Kbps", "5.67 Mbps", "1.2 Gbps"
+_RATE_PATTERN = re.compile(
+    r'([\d.]+)\s*(bps|[Kk]bps|[Mm]bps|[Gg]bps)',
+    re.IGNORECASE,
+)
+
+_RATE_MULTIPLIERS = {
+    'bps': 1,
+    'kbps': 1_000,
+    'mbps': 1_000_000,
+    'gbps': 1_000_000_000,
+}
+
 
 def _to_float(val) -> float | None:
     if val is None or val == "":
@@ -49,6 +62,46 @@ def _first(*vals):
         if r is not None:
             return r
     return None
+
+
+def _parse_rate_to_bps(rate_str) -> int:
+    """
+    Convert a rate string with units to integer bps.
+
+    Arista 'show interfaces' reports rates with unit suffixes:
+        "0 bps"       → 0
+        "1234 bps"    → 1234
+        "1.23 Kbps"   → 1230
+        "5.67 Mbps"   → 5670000
+        "1.2 Gbps"    → 1200000000
+
+    Also handles bare integers (already in bps).
+    """
+    if rate_str is None or rate_str == "":
+        return 0
+    s = str(rate_str).strip()
+
+    # Try bare integer first
+    try:
+        return int(s)
+    except ValueError:
+        pass
+
+    # Try float (already in bps)
+    try:
+        return int(float(s))
+    except ValueError:
+        pass
+
+    # Try rate with units
+    m = _RATE_PATTERN.search(s)
+    if m:
+        value = float(m.group(1))
+        unit = m.group(2).lower()
+        multiplier = _RATE_MULTIPLIERS.get(unit, 1)
+        return int(value * multiplier)
+
+    return 0
 
 
 @register_driver("arista_eos")
@@ -342,9 +395,8 @@ class AristaEOSDriver(VendorDriver):
         """
         Post-process interface detail rows for Arista EOS.
 
-        Mirrors the Cisco driver's approach:
         1. Parse bandwidth string → numeric bandwidth_kbps
-        2. Ensure input_rate_bps / output_rate_bps are int
+        2. Convert rate strings (input_rate_raw/output_rate_raw) to int bps
         3. Ensure error counts are int
         4. Compute utilization_pct if bandwidth is known
         """
@@ -358,16 +410,17 @@ class AristaEOSDriver(VendorDriver):
                     bw_kbps = int(m.group(1))
             intf["bandwidth_kbps"] = bw_kbps
 
-            # ── Ensure rate fields are int ──────────────────────────
-            for field in ("input_rate_bps", "output_rate_bps"):
-                val = intf.get(field)
-                if val is not None:
-                    try:
-                        intf[field] = int(val)
-                    except (ValueError, TypeError):
-                        intf[field] = 0
-                else:
-                    intf[field] = 0
+            # ── Convert rate strings to int bps ─────────────────────
+            # Arista rates arrive as strings with units: "1.23 Mbps",
+            # "456 Kbps", "0 bps". The normalize map renames
+            # input_rate → input_rate_raw, output_rate → output_rate_raw.
+            # We parse these and store as input_rate_bps / output_rate_bps.
+            for raw_field, bps_field in (
+                ("input_rate_raw", "input_rate_bps"),
+                ("output_rate_raw", "output_rate_bps"),
+            ):
+                raw_val = intf.get(raw_field) or intf.get(bps_field)
+                intf[bps_field] = _parse_rate_to_bps(raw_val)
 
             # ── Ensure error counts are int ─────────────────────────
             for field in ("in_errors", "out_errors", "crc_errors"):

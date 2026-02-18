@@ -1,0 +1,60 @@
+# Juniper JunOS - show system processes extensive
+# Custom template for Wirlwind Telemetry process collection
+#
+# Parses the BSD top(1) style output from JunOS.
+# This command provides WCPU (weighted CPU %) — the only JunOS
+# process command that gives real-time CPU percentage per process.
+#
+# Header section (skipped):
+#   last pid: 12345;  load averages:  0.08,  0.11,  0.09  up 365+12:34:56
+#   143 processes: 1 running, 142 sleeping
+#   CPU:  1.2% user,  0.0% nice,  1.5% system,  0.3% interrupt, 97.0% idle
+#   Mem: 456M Active, 123M Inact, 789M Wired, 45M Buf, 89M Free
+#   Swap: 1024M Total, 0K Used, 1024M Free
+#
+# Process rows:
+#   PID USERNAME  THR PRI NICE   SIZE    RES STATE    TIME   WCPU COMMAND
+#  1234 root        1  20    0   123M    45Ma CPU0    12:34  5.12% rpd
+#
+# Notes:
+#   - THR column may not be present on older JunOS versions
+#   - SIZE/RES have unit suffixes (K, M, G)
+#   - WCPU is "0.00%" when idle — this IS a real percentage
+#   - COMMAND may be truncated on long process names
+#   - {master:0} or {backup:1} lines may appear on dual-RE
+#   - Some JunOS versions show "C" (cpu number) column instead of THR
+#   - TIME formats vary: MM:SS (12:34), minutes.tenths (4668.7),
+#     hours-suffixed (537.2H), or ??? for idle/unknown
+Value Required PID (\d+)
+Value USERNAME (\S+)
+Value PRI (-?\d+)
+Value NICE (-?\d+)
+Value SIZE (\S+)
+Value RES (\S+)
+Value STATE (\S+)
+Value TIME ([\d.:?]+H?)
+Value WCPU ([\d.]+)
+Value COMMAND (.+?)
+
+Start
+  # Skip header lines
+  ^last\s+pid -> Header
+  ^\{(master|backup) -> Header
+  ^\s*PID\s+USERNAME -> ProcessRows
+  ^\s*$$
+  ^.
+
+Header
+  # Absorb all header lines until process table starts
+  ^\s*PID\s+USERNAME -> ProcessRows
+  ^.
+  ^\s*$$
+
+ProcessRows
+  # Match process rows — handles both with and without THR column
+  # With THR:  PID USERNAME THR PRI NICE SIZE RES STATE TIME WCPU COMMAND
+  # Without:   PID USERNAME     PRI NICE SIZE RES STATE TIME WCPU COMMAND
+  ^\s*${PID}\s+${USERNAME}\s+\d+\s+${PRI}\s+${NICE}\s+${SIZE}\s+${RES}\s+${STATE}\s+${TIME}\s+${WCPU}%\s+${COMMAND}\s*$$ -> Record
+  ^\s*${PID}\s+${USERNAME}\s+${PRI}\s+${NICE}\s+${SIZE}\s+${RES}\s+${STATE}\s+${TIME}\s+${WCPU}%\s+${COMMAND}\s*$$ -> Record
+  ^\s*$$
+  ^.

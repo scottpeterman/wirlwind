@@ -1,0 +1,56 @@
+# Custom TextFSM template for Juniper JunOS "show chassis routing-engine"
+# NTC-templates does not include this template.
+#
+# Returns one row per Routing Engine. Dual-RE platforms produce two rows
+# (RE0/master, RE1/backup). Driver picks the master or row[0].
+#
+# Single-RE platforms may omit the "Slot" line entirely — SLOT defaults
+# to empty and the driver treats it as slot 0.
+#
+# CPU fields are integer percentages (0–100).
+# DRAM is in MB. MEMORY_UTILIZATION is a percentage.
+# Load averages are floats (Unix-style 1/5/15 minute).
+#
+# Handles output variations:
+#   - "CPU utilization:" vs "5 sec CPU utilization:" (header not captured)
+#   - "DRAM  2048 MB" vs "DRAM  2048 MB (2048 MB installed)"
+#   - Platforms with/without Slot line
+#   - "Temperature  35 degrees C / 95 degrees F" (captures Celsius only)
+Value SLOT (\d+)
+Value STATUS (\S+)
+Value TEMPERATURE (\d+)
+Value DRAM (\d+)
+Value MEMORY_UTILIZATION (\d+)
+Value CPU_USER (\d+)
+Value CPU_BACKGROUND (\d+)
+Value CPU_KERNEL (\d+)
+Value CPU_INTERRUPT (\d+)
+Value Required CPU_IDLE (\d+)
+Value MODEL (.+?)
+Value UPTIME (.+?)
+Value LAST_REBOOT (.+)
+Value LOAD_AVG_1 ([\d.]+)
+Value LOAD_AVG_5 ([\d.]+)
+Value LOAD_AVG_15 ([\d.]+)
+
+Start
+  ^Routing\s+Engine\s+status -> Continue.Record
+  ^\s+Slot\s+${SLOT}
+  ^\s+Current\s+state\s+${STATUS}
+  ^\s+Temperature\s+${TEMPERATURE}\s+degrees
+  ^\s+DRAM\s+${DRAM}\s+MB
+  ^\s+Memory\s+utilization\s+${MEMORY_UTILIZATION}\s+percent
+  ^\s+User\s+${CPU_USER}\s+percent
+  ^\s+Background\s+${CPU_BACKGROUND}\s+percent
+  ^\s+Kernel\s+${CPU_KERNEL}\s+percent
+  ^\s+Interrupt\s+${CPU_INTERRUPT}\s+percent
+  ^\s+Idle\s+${CPU_IDLE}\s+percent
+  ^\s+Model\s+${MODEL}\s*$$
+  ^\s+Uptime\s+${UPTIME}\s*$$
+  ^\s+Last\s+reboot\s+reason\s+${LAST_REBOOT}
+  ^\s+Load\s+averages -> LoadAvg
+  ^.
+
+LoadAvg
+  ^\s+${LOAD_AVG_1}\s+${LOAD_AVG_5}\s+${LOAD_AVG_15} -> Start
+  ^. -> Start

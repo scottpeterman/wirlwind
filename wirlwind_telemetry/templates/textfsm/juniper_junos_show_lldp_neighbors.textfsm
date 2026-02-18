@@ -1,0 +1,22 @@
+# Juniper JunOS - show lldp neighbors (summary, resilient)
+# Fallback for Wirlwind Telemetry neighbors collection
+# Based on NTC juniper_junos_show_lldp_neighbors.textfsm but:
+#   - Removes ^. -> Error (fragile on unexpected lines)
+#   - Handles variable column spacing
+#
+# Summary output gives only basic fields (no mgmt, platform, capabilities).
+# Use show lldp neighbors detail for full data.
+Value Required LOCAL_INTERFACE (\S+)
+Value PARENT_INTERFACE (\S+)
+Value CHASSIS_ID (\S+)
+Value NEIGHBOR_INTERFACE (\S+)
+Value NEIGHBOR_NAME (\S+)
+
+Start
+  ^Local\s+Interface\s+Parent\s+Interface -> Header
+  ^.
+
+Header
+  ^${LOCAL_INTERFACE}\s+${PARENT_INTERFACE}\s+${CHASSIS_ID}\s+${NEIGHBOR_INTERFACE}\s+${NEIGHBOR_NAME} -> Record
+  ^\s*$$
+  ^.

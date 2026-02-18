@@ -1,13 +1,14 @@
 """
-SSH Client - Paramiko wrapper for network device SSH.
+SCNG SSH Client - Paramiko wrapper for network device SSH.
 
-Path: wirlwind_telemetry/ssh_client.py
+Path: scng/discovery/ssh/client.py
 
-Adapted from SCNG/VCollector with:
+Adapted from VCollector's ssh_client.py with:
+- scng.creds integration
 - Legacy device support (old ciphers/KEX)
 - ANSI sequence filtering
 - Sophisticated prompt detection
-- Pagination disabling (shotgun approach)
+- Pagination disabling
 
 Invoke-shell only - no exec mode. This is required for most network devices.
 """
@@ -203,6 +204,9 @@ class SSHClient:
         """Create interactive shell stream."""
         logger.debug("Creating shell stream")
 
+        # Note: height=24 is required — some older IOS SSH implementations
+        # (e.g., Cisco-1.25) reject or silently fail on height=0 PTY requests.
+        # Pagination is handled by 'terminal length 0', not the PTY size.
         self._shell = self._client.invoke_shell(
             term='xterm',
             width=200,
@@ -449,21 +453,25 @@ class SSHClient:
         """
         Disable pagination by trying common commands.
 
-        Fires multiple vendor commands - wrong ones just error harmlessly.
+        Fires multiple vendor commands — wrong ones just produce errors
+        that are drained and discarded. Each command is followed by a
+        find_prompt() to confirm the shell returned to a clean state
+        before sending the next.
         """
         logger.debug("Disabling pagination (shotgun approach)")
 
         for cmd in PAGINATION_DISABLE_SHOTGUN:
             try:
                 self._shell.send(cmd + '\n')
-                time.sleep(0.3)
-                self._drain_output()  # Discard response/errors
+                # Confirm prompt returns — consumes any error output
+                # and validates the shell is ready for the next command
+                self.find_prompt(attempt_count=1, timeout=3.0)
             except Exception as e:
                 logger.debug(f"Pagination cmd failed (expected): {cmd} - {e}")
 
-        # Small settle time
-        time.sleep(0.5)
-        self._drain_output()
+        # Final prompt check — confirm clean shell state
+        prompt = self.find_prompt(attempt_count=2, timeout=3.0)
+        logger.debug(f"Pagination disable complete, prompt={prompt!r}")
 
     def execute_command(
         self,
@@ -496,6 +504,20 @@ class SSHClient:
                 time.sleep(0.1)
                 continue
 
+            # ── Drain stale data before sending ──────────────────
+            # Between poll cycles, the channel may accumulate trailing
+            # bytes from the previous command (post-prompt newlines,
+            # late-arriving output fragments). Without draining, the
+            # next _wait_for_prompt() reads stale data first, finds
+            # the *previous* command's prompt, and returns immediately
+            # with garbage — causing a one-command offset desync where
+            # every collection parses the previous collection's output.
+            stale = self._drain_output()
+            if stale:
+                logger.debug(
+                    f"Drained {len(stale)} bytes of stale data before '{cmd}'"
+                )
+
             logger.debug(f"Sending: {cmd}")
             self._shell.send(cmd + '\n')
 
@@ -526,6 +548,13 @@ class SSHClient:
 
                 if prompt in output:
                     logger.debug("Prompt detected in output")
+                    # Brief settle: some devices send trailing bytes
+                    # (newlines, control chars) after the prompt.
+                    # Capture them now instead of leaving them to
+                    # poison the next command's buffer.
+                    time.sleep(0.05)
+                    if self._shell.recv_ready():
+                        output += self._recv_filtered()
                     return output
 
             time.sleep(0.01)

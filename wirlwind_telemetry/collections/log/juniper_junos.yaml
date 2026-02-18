@@ -1,0 +1,39 @@
+# collections/log/juniper_junos.yaml
+# Device log collection - Juniper JunOS
+#
+# Uses "show log messages | last 50" to read recent syslog entries.
+# JunOS "show log" alone is just a file listing (/var/log/) —
+# "show log messages" reads the actual syslog file.
+#
+# The "| last 50" pipe limits output to avoid pulling the entire
+# syslog file over SSH on every poll cycle.
+#
+# BSD syslog format — no structured severity field in text.
+# Driver infers severity from keywords and facility.
+#
+# Custom template returns (lowercased):
+#   month, day, time, facility, message
+#
+# Dashboard expects: timestamp, facility, severity, mnemonic, message
+# Driver assembles timestamp, extracts mnemonic, infers severity.
+
+command: "show log messages | last 50"
+interval: 30
+
+parsers:
+  # Priority 1: custom TextFSM for BSD syslog format
+  - type: textfsm
+    templates:
+      - juniper_junos_show_log_messages.textfsm
+
+  # Priority 2: regex fallback
+  - type: regex
+    pattern: '^(?P<month>\w+)\s+(?P<day>\d+)\s+(?P<time>\d+:\d+:\d+)\s+\S+\s+(?P<facility>\S+?)(?:\[\d+\])?:\s+(?P<message>.+)$'
+    flags: MULTILINE
+
+normalize:
+  month: month
+  day: day
+  time: time
+  facility: facility
+  message: message

@@ -1,0 +1,51 @@
+# Juniper JunOS - show interfaces (physical)
+# Custom template for Wirlwind Telemetry interface_detail collection
+#
+# NTC template (juniper_junos_show_interfaces.textfsm) exists but:
+#   - Does NOT capture Input rate / Output rate lines
+#   - Does NOT capture Speed field
+#   - Does NOT capture Input/Output errors
+#   - Uses ^. -> Error (fragile, breaks on unrecognized lines)
+#
+# Sample physical interface block:
+#   Physical interface: ge-0/0/0, Enabled, Physical link is Up
+#     Interface index: 148, SNMP ifIndex: 526
+#     Description: uplink-to-spine1
+#     Link-level type: Ethernet, MTU: 1514, MRU: 1522, LAN-PHY mode,
+#       Speed: 1000mbps, BPDU Error: None
+#     ...
+#     Input rate     : 1234 bps (2 pps)
+#     Output rate    : 5678 bps (1 pps)
+#     ...
+#       Input errors: 0, Output errors: 0, Queue drops: 0
+#
+# Notes:
+#   - Only captures Physical interfaces (Logical sections pass through ^.)
+#   - MTU anchored to Link-level type line to avoid Logical MTU overwrite
+#   - Speed may be on same line or wrapped — captured from either position
+#   - Rates are integer bps from JunOS (no unit conversion needed for rates)
+#   - Speed field varies: "1000mbps", "10Gbps", "100mbps", "Auto"
+#     → driver converts to bandwidth_kbps via _parse_juniper_speed()
+#   - Input/Output errors on same line — uses Continue to capture both
+Value Required INTERFACE (\S+)
+Value ADMIN_STATE (\S+)
+Value LINK_STATUS (\w+)
+Value DESCRIPTION (.+?)
+Value MTU (\d+)
+Value SPEED (\S+?)
+Value INPUT_RATE (\d+)
+Value OUTPUT_RATE (\d+)
+Value INPUT_ERRORS (\d+)
+Value OUTPUT_ERRORS (\d+)
+
+Start
+  ^Physical\s+interface -> Continue.Record
+  ^Physical\s+interface:\s+${INTERFACE},\s+${ADMIN_STATE},\s+Physical\s+link\s+is\s+${LINK_STATUS}
+  ^\s+Description:\s+${DESCRIPTION}\s*$$
+  ^.*Link-level\s+type:\s+\S+,\s+MTU:\s+${MTU} -> Continue
+  ^.*Speed:\s+${SPEED},
+  ^\s+Input\s+rate\s*:\s+${INPUT_RATE}\s+bps
+  ^\s+Output\s+rate\s*:\s+${OUTPUT_RATE}\s+bps
+  ^.*Input\s+errors:\s+${INPUT_ERRORS} -> Continue
+  ^.*Output\s+errors:\s+${OUTPUT_ERRORS}
+  ^.

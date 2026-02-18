@@ -1,18 +1,18 @@
 # Wirlwind Telemetry
 
-Real-time network device telemetry dashboard. SSH into a device, poll CLI commands on schedule, parse output through a fallback chain (TextFSM → TTP → regex), and render live ECharts gauges, tables, and trend charts in a PyQt6 widget.
+Real-time network device telemetry dashboard. SSH into a device, poll CLI commands on schedule, parse output through a fallback chain (TextFSM → TTP → regex), and render live throughput charts, interface tables, neighbor graphs, and device logs in a PyQt6 widget.
 
-Built for network engineers who need to see what a device is doing *right now* — not what a monitoring system polled 5 minutes ago.
+Built for network engineers who need to see what a device is doing *right now* — not what a monitoring system polled 5 minutes ago. Operational focus: traffic, topology, interface state, and log events. The panels you actually look at during an outage.
 
 
 ## What It Does
 
-Wirlwind connects to a network device over SSH, runs vendor-specific CLI commands (`show processes cpu sorted`, `show interfaces`, `show cdp neighbors detail`, etc.), parses the output into structured data, and drives a live HTML dashboard rendered in a QWebEngine panel. Everything updates on a configurable poll schedule — CPU and memory every 30 seconds, interfaces every 60, neighbors every 5 minutes.
+Wirlwind connects to a network device over SSH, runs vendor-specific CLI commands (`show interfaces`, `show lldp neighbors detail`, `show logging`, etc.), parses the output into structured data, and drives a live HTML dashboard rendered in a QWebEngine panel. Everything updates on a configurable poll schedule — interfaces and throughput every 60 seconds, neighbors every 5 minutes, logs every 30 seconds.
 
-The dashboard will eventually either standalone (own window) or embedded as a tab in [nterm](https://github.com/scottpeterman/nterm), a PyQt6 SSH terminal with network tooling integration.
+The dashboard runs standalone (own window) or embedded as a tab in [nterm](https://github.com/scottpeterman/nterm), a PyQt6 SSH terminal with network tooling integration.
 
 
-![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/refs/heads/main/screenshots/sample3.png)
+![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/refs/heads/main/screenshots/sample.png)
 
 ## Architecture
 
@@ -33,7 +33,7 @@ The dashboard will eventually either standalone (own window) or embedded as a ta
                                                                └─────────────┘
 ```
 
-**Key design principle:** The poll engine and dashboard are vendor-agnostic. All vendor-specific behavior — pagination commands, field name normalization, CPU/memory math — lives in vendor drivers (`drivers/`). All command definitions and parse instructions live in collection configs (`collections/`). Adding a new vendor or a new collection never requires touching the engine or the frontend.
+**Key design principle:** The poll engine and dashboard are vendor-agnostic. All vendor-specific behavior — pagination commands, field name normalization, rate parsing — lives in vendor drivers (`drivers/`). All command definitions and parse instructions live in collection configs (`collections/`). Adding a new vendor or a new collection never requires touching the engine or the frontend.
 
 ### Components
 
@@ -42,7 +42,7 @@ The dashboard will eventually either standalone (own window) or embedded as a ta
 | **Poll Engine** | `poll_engine.py` | QThread that runs the SSH → parse → store loop on schedule |
 | **Parser Chain** | `parser_chain.py` | Ordered fallback: TextFSM → TTP → regex. First parser that returns structured data wins |
 | **Collection Configs** | `collections/*/` | YAML files defining commands, parser templates, normalize maps, and schemas per vendor |
-| **Vendor Drivers** | `drivers/` | Vendor-specific post-processing (field normalization, computed fields, cross-collection joins) |
+| **Vendor Drivers** | `drivers/` | Vendor-specific post-processing (field normalization, computed fields, rate unit conversion) |
 | **Parse Trace** | `parse_trace.py` | Structured audit log — every parse attempt records what was tried and why it succeeded or failed |
 | **State Store** | `state_store.py` | In-memory state with history ring buffers, emits Qt signals on update |
 | **Bridge** | `bridge.py` | QWebChannel bridge between Python state store and JavaScript dashboard |
@@ -89,45 +89,51 @@ widget.start(target)
 
 ## Supported Vendors
 
-| Vendor ID | Platform | Driver | Collection Coverage |
-|-----------|----------|--------|---------------------|
-| `cisco_ios` | Cisco IOS 15.x | `CiscoIOSDriver` | Full (7 collections) |
-| `cisco_ios_xe` | Cisco IOS-XE 16.x/17.x | `CiscoIOSDriver` | Full (7 collections) |
+| Vendor ID | Platform | Driver | Status |
+|-----------|----------|--------|--------|
+| `cisco_ios` | Cisco IOS 15.x | `CiscoIOSDriver` | Full |
+| `cisco_ios_xe` | Cisco IOS-XE 16.x/17.x | `CiscoIOSDriver` | Full |
 | `cisco_nxos` | Cisco NX-OS | `CiscoNXOSDriver` | Partial |
-| `arista_eos` | Arista EOS | `AristaEOSDriver` | Partial |
-| `juniper_junos` | Juniper JunOS | `JuniperJunOSDriver` | Partial |
+| `arista_eos` | Arista EOS | `AristaEOSDriver` | Production-tested |
+| `juniper_junos` | Juniper JunOS | `JuniperJunOSDriver` | Production-tested |
 
 Adding a vendor requires only a new driver file in `drivers/` and collection YAML configs — no engine changes.
 
 ## Collections
 
-Each collection is a directory under `collections/` containing:
-- Per-vendor YAML configs (command, parsers, normalize map)
-- A `_schema.yaml` defining canonical fields and types
+Each collection is a directory under `collections/` containing per-vendor YAML configs (command, parsers, normalize map) and a `_schema.yaml` defining canonical fields and types.
 
 | Collection | Command (IOS/IOS-XE) | Interval | Dashboard Panel |
 |------------|----------------------|----------|-----------------|
-| `cpu` | `show processes cpu sorted` | 30s | CPU gauge + process table |
-| `memory` | `show processes memory sorted` | 30s | Memory gauge |
 | `interfaces` | `show ip interface brief` | 60s | Interface status table |
-| `interface_detail` | `show interfaces` | 60s | Throughput chart (per-interface selector) |
-| `log` | `show logging` | 30s | Device log viewer |
-| `neighbors` | `show cdp neighbors detail` | 300s | CDP/LLDP force-directed graph |
+| `interface_detail` | `show interfaces` | 60s | Throughput chart (per-interface selector, auto-scaling bps→Kbps→Mbps→Gbps) |
+| `neighbors` | `show cdp neighbors detail` | 300s | CDP/LLDP force-directed topology graph |
+| `log` | `show logging` | 30s | Device log viewer with severity coloring |
+| `cpu` | `show processes cpu sorted` | 30s | Collected for history/trending (no dashboard panel) |
+| `memory` | `show processes memory sorted` | 30s | Collected for history/trending (no dashboard panel) |
 | `bgp_summary` | `show ip bgp summary` | 60s | Collected but no dashboard panel (routing module planned) |
-| `environment` | `show environment all` | 120s | Planned |
 
 ## Dashboard Panels
 
+The dashboard is built around four operational panels — the things you actually look at during an incident:
+
 | Panel | Data Source | Features |
 |-------|-----------|----------|
-| **CPU Utilization** | `cpu` | ECharts gauge, green/amber/red zones, 5-min average badge |
-| **Memory Utilization** | `memory` | ECharts gauge, used/total MB readout |
-| **Top Processes** | `cpu` | Sortable table: PID, name, CPU%, MEM |
-| **Interface Throughput** | `interface_detail` | Area chart with auto-scaling (bps/Kbps/Mbps), dropdown to filter by interface or aggregate all |
-| **LLDP/CDP Neighbors** | `neighbors` | Force-directed graph: routers (cyan roundRect), switches (green rect). Edge labels show both local and remote interfaces. Hover for platform, mgmt IP, capabilities |
-| **CPU & Memory Trend** | `cpu` + `memory` history | Dual-line chart, 6-hour rolling window |
-| **Device Log** | `log` | Newest-first syslog entries, severity-colored mnemonics, warning count badge |
-| **Interface Status** | `interfaces` | Table: interface, status, protocol, IP address, up/down/admin-down count badge |
+| **Interface Throughput** | `interface_detail` | Area chart with auto-scaling (bps/Kbps/Mbps/Gbps), per-interface dropdown or aggregate all, live rate badge |
+| **LLDP/CDP Neighbors** | `neighbors` | Force-directed graph: routers (cyan roundRect), switches (green rect), unknown (amber circle). Edge labels show local ↔ remote interfaces. Management IP overlay |
+| **Interface Status** | `interfaces` | Full interface table: name, description, status. Color-coded up/down/admin-down with count badge |
+| **Device Log** | `log` | Newest-first syslog entries, severity-colored facility/mnemonic tags, warning count badge. Raw text fallback if structured parsing fails — the panel always shows something |
+
+CPU and memory data is still collected for backend trending but the gauges have been removed from the default dashboard layout. During an outage, throughput/state/topology/logs are what matter.
+
+## Log Resilience
+
+Log parsing across vendors is inherently fragile — different IOS versions, JunOS BSD syslog format, Arista's structured logging all produce different output. The log pipeline is designed to never fail silently:
+
+- Structured parsing processes entries individually (one bad row can't kill the panel)
+- If all structured entries fail, falls back to raw CLI output split one-line-per-entry
+- JunOS gets its own log processor with keyword-based severity inference
+- The `_log_fallback` flag in debug output shows when raw mode activated
 
 ## Custom Templates
 
@@ -137,10 +143,10 @@ When an NTC TextFSM template breaks on a specific IOS version (and they do), dro
 parsers:
   - type: textfsm
     templates:
-      - my_fixed_show_processes_cpu.textfsm      # tried first (local)
-      - cisco_ios_show_processes_cpu.textfsm      # tried second (ntc-templates)
-  - type: regex                                    # tried third
-    pattern: 'CPU utilization for five seconds:\s+(\d+)%...'
+      - my_fixed_show_interfaces.textfsm          # tried first (local)
+      - cisco_ios_show_interfaces.textfsm          # tried second (ntc-templates)
+  - type: regex                                     # tried third
+    pattern: 'Interface\s+(\S+)\s+is\s+(up|down)...'
 ```
 
 ## Debug & Troubleshooting
@@ -148,22 +154,21 @@ parsers:
 Run with `--debug` for full parse trace output:
 
 ```
-TRACE [cpu] parsed_by=textfsm rows=47 fields=5 duration=12.3ms
-TRACE [memory] parsed_by=textfsm rows=1 fields=8 duration=8.1ms
 TRACE [interfaces] parsed_by=textfsm rows=15 fields=6 duration=5.2ms
-TRACE [interface_detail] parsed_by=textfsm rows=15 fields=43 duration=18.7ms
+TRACE [interface_detail] parsed_by=textfsm rows=15 fields=25 duration=18.7ms
 TRACE [neighbors] parsed_by=textfsm rows=3 fields=7 duration=4.1ms
+TRACE [log] parsed_by=regex rows=28 fields=5 duration=2.1ms
 ```
 
 When a parser fails, the trace shows exactly why:
 
 ```
-TRACE [cpu] parsed_by=none rows=0 fields=0 ERROR=all parsers failed (textfsm: 0 rows returned; regex: 0 matches)
+TRACE [log] parsed_by=none rows=0 fields=0 ERROR=all parsers failed (regex: 0 matches for pattern)
 ```
 
 At DEBUG level, full structured JSON traces show every step: command sent, raw output preview, sanitization, each template tried and its resolution path, normalization, type coercion, and final delivery to the state store.
 
-The dashboard's `{ }` debug buttons (on each panel header) dump the current state store JSON for any collection, showing exactly what data reached the frontend.
+The dashboard's `{ }` debug buttons (on each panel header) dump the current state store JSON for any collection, showing exactly what data reached the frontend — including parser metadata (`_parsed_by`, `_template`) and any error state.
 
 ## Project Structure
 
@@ -185,12 +190,12 @@ wirlwind_telemetry/
 │   ├── arista_eos.py        # Arista EOS
 │   └── juniper_junos.py     # Juniper JunOS
 ├── collections/             # Collection configs (YAML)
-│   ├── cpu/
-│   ├── memory/
 │   ├── interfaces/
 │   ├── interface_detail/
-│   ├── log/
 │   ├── neighbors/
+│   ├── log/
+│   ├── cpu/
+│   ├── memory/
 │   └── bgp_summary/
 ├── templates/
 │   └── textfsm/             # Custom TextFSM overrides

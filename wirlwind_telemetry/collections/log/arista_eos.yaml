@@ -3,23 +3,25 @@
 # No NTC TextFSM template exists for Arista EOS show logging.
 # Uses regex parsing only.
 #
-# Actual output format:
-#   Feb 15 18:21:37 switch Ebra: %LINEPROTO-5-UPDOWN: Line protocol on Interface Ethernet1, changed state to up
-#   Feb 15 18:21:37 switch Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet1 added to instance 1
+# EOS log output varies by version/config:
+#
+# ISO 8601 format (newer EOS / RFC5424):
+#   2026-02-07T19:19:48.183403+00:00 peer1-01 Aaa: %AAA-4-CMD_AUTHZ_FAILED: User oxidize failed...
+#
+# Classic syslog format:
+#   Feb 15 18:21:37 switch Ebra: %LINEPROTO-5-UPDOWN: Line protocol on Interface Ethernet1...
 #   Feb 15 18:30:01 switch ConfigAgent[1234]: %SYS-5-CONFIG_I: Configured from console
 #
-# The format is: <timestamp> <hostname> <process>: %<facility>-<severity>-<mnemonic>: <message>
-#
-# Using "show logging last 50" to get recent entries without the logging config preamble.
+# Regex handles both: \S+ matches ISO timestamp as one token,
+# optional (?:\s+\d+\s+[\d:]+)? extends to catch classic "Mon DD HH:MM:SS".
 
-command: "show logging last 50 hours 245"
+command: "show logging last 24 hours"
 interval: 30
 
 parsers:
-  # Regex: capture syslog entries
-  # Matches: "Feb 15 18:21:37 hostname Process: %FACILITY-SEV-MNEMONIC: message"
+  # Regex: capture syslog entries (both timestamp formats)
   - type: regex
-    pattern: '^(\w+\s+\d+\s+[\d:]+)\s+\S+\s+\S+:\s+%(\w+)-(\d+)-(\w+):\s*(.*?)$'
+    pattern: '^(\S+(?:\s+\d+\s+[\d:]+)?)\s+\S+\s+\S+:\s+%(\w+)-(\d+)-(\w+):\s*(.*?)$'
     flags: MULTILINE
     groups:
       timestamp: 1

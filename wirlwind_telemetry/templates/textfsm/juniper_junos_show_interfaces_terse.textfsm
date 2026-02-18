@@ -1,0 +1,33 @@
+# Juniper JunOS - show interfaces terse
+# Custom template for Wirlwind Telemetry interfaces collection
+# No NTC-templates equivalent exists
+#
+# Sample output:
+#   Interface               Admin Link Proto    Local                 Remote
+#   ge-0/0/0                up    up
+#   ge-0/0/0.0              up    up   inet     172.17.1.12/24
+#   lo0                     up    up
+#   lo0.0                   up    up   inet     10.255.0.1
+#                                      multiservice
+#
+# Notes:
+#   - Continuation lines (indented additional protocols) silently skipped
+#   - Interfaces without proto/local still captured (physical parents)
+#   - LOCAL may include /prefix (e.g. 172.17.1.12/24)
+Value Required INTERFACE (\S+)
+Value ADMIN_STATE (\w+)
+Value LINK_STATUS (\w+)
+Value PROTO (\w+)
+Value LOCAL (\S+)
+
+Start
+  ^Interface\s+Admin -> Header
+  ^.
+
+Header
+  ^${INTERFACE}\s+${ADMIN_STATE}\s+${LINK_STATUS}\s+${PROTO}\s+${LOCAL}\s*$$ -> Record
+  ^${INTERFACE}\s+${ADMIN_STATE}\s+${LINK_STATUS}\s+${PROTO}\s*$$ -> Record
+  ^${INTERFACE}\s+${ADMIN_STATE}\s+${LINK_STATUS}\s*$$ -> Record
+  ^\s+\S+
+  ^\s*$$
+  ^.

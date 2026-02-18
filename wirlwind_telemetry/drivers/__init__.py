@@ -353,49 +353,135 @@ def _normalize_bgp_peers(peers: list[dict]) -> list[dict]:
     return peers
 
 
+def _raw_text_to_log_entries(
+    raw_text: str, max_entries: int = 50
+) -> list[dict]:
+    """
+    Fallback: split raw CLI output into one log entry per line.
+
+    Used when structured parsing (TextFSM/TTP/regex) fails or
+    produces no usable entries. Every non-empty line becomes a
+    minimal entry with just a message — no parsed facility,
+    severity, or mnemonic. The dashboard renders these as plain
+    text with default formatting.
+
+    Returns newest-first (reversed) and trimmed to max_entries.
+    """
+    if not raw_text or not isinstance(raw_text, str):
+        return []
+
+    lines = [
+        line.strip()
+        for line in raw_text.splitlines()
+        if line.strip()
+    ]
+
+    entries = []
+    for line in lines:
+        entries.append({
+            "timestamp": "",
+            "facility": "",
+            "severity": 6,       # informational — neutral default
+            "mnemonic": "RAW",
+            "message": line,
+        })
+
+    # Reverse so newest (last line of output) appears first
+    entries.reverse()
+    return entries[:max_entries]
+
+
 def _post_process_log(data: dict, max_entries: int = 50) -> dict:
     """
-    Post-process log entries:
-    - Assemble timestamp from TextFSM month/day/time fields
-    - Join message lists into strings
-    - Coerce severity to int
-    - Reverse to newest-first
-    - Trim to max_entries
+    Post-process log entries with raw-text fallback.
+
+    Happy path (structured parsing succeeded):
+      - Assemble timestamp from TextFSM month/day/time fields
+      - Join message lists into strings
+      - Coerce severity to int
+      - Reverse to newest-first
+      - Trim to max_entries
+
+    Fallback (parsing failed or entries are empty/malformed):
+      - If _raw_output is present in data, split into one
+        entry per line so the dashboard always shows *something*
+
+    Individual entry failures are logged and skipped — one bad
+    row never takes down the whole log panel.
     """
     entries = data.get("entries")
+    raw_output = data.get("_raw_output", "")
+
+    # ── No entries at all → try raw fallback ──────────────────
     if not entries:
+        if raw_output:
+            data["entries"] = _raw_text_to_log_entries(
+                raw_output, max_entries
+            )
+            data["_log_fallback"] = "raw_text"
+            logger.debug("Log: no parsed entries, fell back to raw text")
         return data
 
+    # ── Process structured entries ────────────────────────────
+    good = []
+    failures = 0
+
     for entry in entries:
-        # Assemble timestamp from components
-        if "timestamp" not in entry and "month" in entry:
-            parts = [
-                entry.get("month", ""),
-                entry.get("day", ""),
-                entry.get("time", ""),
-            ]
-            tz = entry.get("timezone", "")
-            ts = " ".join(p for p in parts if p)
-            if tz:
-                ts += f" {tz}"
-            entry["timestamp"] = ts
+        try:
+            # Assemble timestamp from components
+            if "timestamp" not in entry and "month" in entry:
+                parts = [
+                    entry.get("month", ""),
+                    entry.get("day", ""),
+                    entry.get("time", ""),
+                ]
+                tz = entry.get("timezone", "")
+                ts = " ".join(p for p in parts if p)
+                if tz:
+                    ts += f" {tz}"
+                entry["timestamp"] = ts
 
-        # Join message list
-        msg = entry.get("message", "")
-        if isinstance(msg, list):
-            entry["message"] = " ".join(str(m) for m in msg if m)
+            # Join message list
+            msg = entry.get("message", "")
+            if isinstance(msg, list):
+                entry["message"] = " ".join(str(m) for m in msg if m)
 
-        # Coerce severity
-        sev = entry.get("severity")
-        if sev is not None:
-            try:
-                entry["severity"] = int(sev)
-            except (ValueError, TypeError):
-                pass
+            # Coerce severity
+            sev = entry.get("severity")
+            if sev is not None:
+                try:
+                    entry["severity"] = int(sev)
+                except (ValueError, TypeError):
+                    pass
+
+            good.append(entry)
+
+        except Exception as exc:
+            failures += 1
+            logger.debug("Log entry processing failed: %s", exc)
+
+    if failures:
+        logger.warning(
+            "Log: %d/%d entries failed structured processing",
+            failures,
+            len(entries),
+        )
+
+    # ── If ALL structured entries failed → raw fallback ───────
+    if not good and raw_output:
+        data["entries"] = _raw_text_to_log_entries(
+            raw_output, max_entries
+        )
+        data["_log_fallback"] = "raw_text"
+        logger.info(
+            "Log: all %d structured entries failed, fell back to raw text",
+            len(entries),
+        )
+        return data
 
     # Newest first
-    entries.reverse()
-    data["entries"] = entries[:max_entries]
+    good.reverse()
+    data["entries"] = good[:max_entries]
     return data
 
 
