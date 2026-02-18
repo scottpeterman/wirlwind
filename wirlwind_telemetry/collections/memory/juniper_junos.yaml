@@ -1,0 +1,32 @@
+# Memory collection - Juniper JunOS
+#
+# Uses the same "show chassis routing-engine" command as the CPU
+# collection. The TextFSM template returns memory_utilization (%)
+# and dram (MB) per routing engine. The driver picks the master RE
+# and computes used_pct, total_display, used_display.
+#
+# Unlike Cisco/Arista where memory requires math on used/total/free,
+# JunOS gives us the percentage directly. DRAM size provides the
+# denominator for display strings.
+#
+# Dual-RE platforms: driver picks master RE (same as CPU path).
+
+command: "show chassis routing-engine"
+interval: 30
+
+parsers:
+  # Priority 1: custom TextFSM (same template as CPU collection)
+  - type: textfsm
+    templates:
+      - juniper_junos_show_chassis_routing-engine.textfsm
+
+  # Priority 2: regex fallback — captures memory utilization line
+  - type: regex
+    pattern: 'Memory\s+utilization\s+(\d+)\s+percent'
+    flags: DOTALL
+    groups:
+      memory_utilization: 1
+
+normalize:
+  memory_utilization: memory_utilization
+  mem_total: dram

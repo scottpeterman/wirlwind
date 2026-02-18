@@ -1,0 +1,37 @@
+# Juniper JunOS - show interfaces descriptions
+# Custom template for Wirlwind Telemetry interfaces collection
+#
+# Replaces show interfaces terse — provides interface descriptions
+# which are operationally critical on production edge routers.
+#
+# Sample output:
+#   Interface       Admin Link Description
+#   xe-0/0/0:0      up    down Available
+#   et-0/1/0        up    up   TRANSIT::Arelion:AS1299
+#   et-0/1/2                   DO NOT USE - SUSPECT PORT!
+#   lo0             up    up
+#
+# Notes:
+#   - Admin/Link constrained to (up|down) to prevent description
+#     words from being captured as status on interfaces that lack
+#     admin/link columns (decommissioned, error-disabled)
+#   - Description-only rule uses \s{2,} to match the wide gap where
+#     admin/link columns would be
+#   - Description may contain any characters (colons, dashes, spaces)
+#   - Channelized interfaces (xe-0/0/0:0) handled by \S+ in INTERFACE
+Value Required INTERFACE (\S+)
+Value ADMIN_STATE (up|down)
+Value LINK_STATUS (up|down)
+Value DESCRIPTION (.+?)
+
+Start
+  ^Interface\s+Admin -> Header
+  ^.
+
+Header
+  ^${INTERFACE}\s+${ADMIN_STATE}\s+${LINK_STATUS}\s+${DESCRIPTION}\s*$$ -> Record
+  ^${INTERFACE}\s+${ADMIN_STATE}\s+${LINK_STATUS}\s*$$ -> Record
+  ^${INTERFACE}\s{2,}${DESCRIPTION}\s*$$ -> Record
+  ^\s*$$
+  ^.
+speterman-MacBook-Pro:~ speterman$

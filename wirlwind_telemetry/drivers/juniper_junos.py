@@ -94,6 +94,24 @@ _KERNEL_PREFIX = (
     'mastersh', 'yarrow', 'busdma',
 )
 
+# ── Neighbor field coalescing map ─────────────────────────────────
+# Maps canonical dashboard field → list of possible raw/mapped names.
+# First non-empty value wins. Defined at module level so it's not
+# rebuilt per-neighbor inside the loop.
+
+_NEIGHBOR_FIELD_MAP = {
+    "local_intf":           ["local_intf", "local_interface"],
+    "remote_intf":          ["remote_intf", "port_id", "neighbor_interface"],
+    "device_id":            ["device_id", "system_name", "neighbor_name",
+                             "chassis_id"],
+    "chassis_id":           ["chassis_id"],
+    "port_description":     ["port_description"],
+    "neighbor_description": ["neighbor_description", "system_description"],
+    "mgmt_ip":              ["mgmt_ip", "mgmt_address", "management_ip"],
+    "capabilities":         ["capabilities"],
+    "parent_interface":     ["parent_interface"],
+}
+
 
 def _to_float(val) -> float | None:
     if val is None or val == "":
@@ -549,20 +567,23 @@ class JuniperJunOSDriver(VendorDriver):
     @staticmethod
     def _post_process_neighbors(neighbors: list[dict]) -> list[dict]:
         """
-        Normalize LLDP neighbor fields for the dashboard graph.
+        Normalize LLDP/CDP neighbor fields for the dashboard graph.
 
-        JunOS NTC "show lldp neighbors" template returns:
-          local_interface, parent_interface, chassis_id,
-          neighbor_interface, neighbor_name
+        Handles incomplete YAML normalize maps by coalescing raw TextFSM
+        field names and partially-mapped names into the canonical fields
+        the UI expects:
+          device_id, local_intf, remote_intf, chassis_id,
+          port_description, neighbor_description, mgmt_ip,
+          capabilities, platform
 
-        After the YAML normalize map runs, we expect:
-          device_id, local_intf, remote_intf, mgmt_ip, platform, capabilities
+        Also deduplicates LAG member links — multiple LLDP entries for
+        the same neighbor via ae member interfaces are collapsed into a
+        single graph node using the aggregate interface name.
 
         JunOS LLDP quirks vs Arista/Cisco:
-        - neighbor_name is the LLDP system name (may be FQDN)
+        - system_name is the LLDP system name (may be FQDN)
         - chassis_id is often the base MAC address
-        - No platform/capabilities in the summary template —
-          "show lldp neighbors detail" would be needed for those
+        - system_description contains platform/version info
         - parent_interface may be an aggregate (ae0) when local_interface
           is a member link
         """
@@ -581,14 +602,64 @@ class JuniperJunOSDriver(VendorDriver):
             "Management": "Ma",
         }
 
+        # ── Step 1: Coalesce fields ──────────────────────────────
+        # Map raw/unmapped TextFSM names → canonical dashboard names.
+        # This makes the driver resilient to incomplete normalize maps
+        # across LLDP and CDP templates.
         for nbr in neighbors:
-            # Strip FQDN from device_id
+            for canonical, candidates in _NEIGHBOR_FIELD_MAP.items():
+                if nbr.get(canonical):
+                    continue  # Already populated, don't overwrite
+                for raw_key in candidates:
+                    val = nbr.get(raw_key, "")
+                    if val and val != "-":
+                        nbr[canonical] = val
+                        break
+
+        # ── Step 2: Strip FQDN from device_id ────────────────────
+        for nbr in neighbors:
             device_id = nbr.get("device_id", "")
             if "." in device_id and not device_id.replace(".", "").isdigit():
                 nbr["device_id"] = device_id.split(".")[0]
 
-            # Platform inference from device_id or any available description
-            # JunOS LLDP summary doesn't include platform — infer what we can
+        # ── Step 3: Deduplicate LAG member links ─────────────────
+        # Multiple LLDP entries for the same neighbor via ae member
+        # links create duplicate echarts graph nodes (same name = broken).
+        # Collapse them, keeping the aggregate interface as local_intf.
+        seen_lag = {}
+        deduped = []
+        for nbr in neighbors:
+            device_id = nbr.get("device_id", "")
+            parent = nbr.get("parent_interface", "")
+            if parent and parent != "-" and device_id:
+                key = (device_id, parent)
+                if key in seen_lag:
+                    continue  # Skip duplicate LAG member
+                seen_lag[key] = True
+                nbr["local_intf"] = parent  # Show ae0 instead of member link
+            deduped.append(nbr)
+        neighbors = deduped
+
+        # ── Step 4: Disambiguate remaining duplicate device_ids ──
+        # Safety net: if two different neighbors still share a name
+        # (e.g. two separate devices both named "switch"), append
+        # the local interface to make echarts node names unique.
+        name_count: dict[str, int] = {}
+        for nbr in neighbors:
+            did = nbr.get("device_id", "")
+            name_count[did] = name_count.get(did, 0) + 1
+
+        if any(v > 1 for v in name_count.values()):
+            seen_names: dict[str, int] = {}
+            for nbr in neighbors:
+                did = nbr.get("device_id", "")
+                if name_count.get(did, 0) > 1:
+                    seen_names[did] = seen_names.get(did, 0) + 1
+                    if seen_names[did] > 1:
+                        nbr["device_id"] = f"{did}:{nbr.get('local_intf', seen_names[did])}"
+
+        # ── Step 5: Platform inference ───────────────────────────
+        for nbr in neighbors:
             platform = nbr.get("platform", "")
             if not platform:
                 desc = nbr.get("neighbor_description", "")
@@ -606,8 +677,6 @@ class JuniperJunOSDriver(VendorDriver):
                         platform = desc[:40]  # Truncate long descriptions
                 nbr["platform"] = platform
 
-            # If still no platform, leave empty — graph renders without it
-
             # Shorten remote interface names (from non-Juniper neighbors)
             for field in ("local_intf", "remote_intf"):
                 intf = nbr.get(field, "")
@@ -617,8 +686,6 @@ class JuniperJunOSDriver(VendorDriver):
                         break
 
             # Capabilities inference for node shape
-            # JunOS LLDP summary doesn't include capabilities.
-            # Infer from platform or device_id if possible.
             caps = nbr.get("capabilities", "")
             if not caps and platform:
                 platform_lower = platform.lower()

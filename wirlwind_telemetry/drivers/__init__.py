@@ -30,7 +30,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .state_store import DeviceStateStore
+    pass
+    #from .state_store import DeviceStateStore
 
 logger = logging.getLogger(__name__)
 

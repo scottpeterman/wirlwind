@@ -1,61 +1,28 @@
-# Juniper JunOS - show lldp neighbors detail
-# Custom template for Wirlwind Telemetry neighbors collection
-# No NTC-templates equivalent exists for the detail variant
-#
-# NTC has juniper_junos_show_lldp_neighbors.textfsm (summary only):
-#   - Missing: mgmt address, system description, capabilities
-#   - Uses ^. -> Error (fragile)
-#
-# Sample output:
-#   LLDP Neighbor Information:
-#   Local Interface    : ge-0/0/0.0
-#   Parent Interface   : ge-0/0/0
-#     Chassis type     : Mac address
-#     Chassis ID       : 00:1c:73:aa:bb:cc
-#     Port type        : Locally assigned
-#     Port ID          : 507
-#     Port description : GigabitEthernet0/0/0
-#     System name      : router1.lab.local
-#
-#     System description : Cisco IOS Software, ISR Software ...
-#
-#     Age              : 2:05:14
-#     System capabilities
-#         Supported    : Bridge Router
-#         Enabled      : Router
-#     Management address
-#         Address type : IPv4
-#         Address      : 10.0.0.1
-#
-# Notes:
-#   - Each neighbor block starts with "Local Interface"
-#   - Record triggered by next block header (Continue.Record no captures)
-#     or by EOF auto-record
-#   - All capture rules use $$ anchor to force greedy match to EOL
-#   - Some neighbors may lack management address or capabilities
 Value Required LOCAL_INTERFACE (\S+)
 Value PARENT_INTERFACE (\S+)
-Value CHASSIS_ID (\S+)
-Value PORT_ID (.+)
-Value PORT_DESCRIPTION (.+)
-Value SYSTEM_NAME (.+)
-Value SYSTEM_DESCRIPTION (.+)
+Value CHASSIS_ID ([0-9a-f:]+)
+Value PORT_ID (.+?)
+Value PORT_DESCRIPTION (.+?)
+Value SYSTEM_NAME (.+?)
+Value SYSTEM_DESCRIPTION (.+?)
 Value MGMT_ADDRESS (\d+\.\d+\.\d+\.\d+)
-Value CAPABILITIES (.+)
+Value CAPABILITIES (.+?)
 
 Start
   ^Local\s+Interface\s+:\s+${LOCAL_INTERFACE}\s*$$ -> Neighbor
   ^.
 
 Neighbor
-  ^\s+Parent\s+Interface\s+:\s+${PARENT_INTERFACE}\s*$$
+  ^\s*Parent\s+Interface\s+:\s+${PARENT_INTERFACE}\s*$$
   ^\s+Chassis\s+ID\s+:\s+${CHASSIS_ID}\s*$$
   ^\s+Port\s+ID\s+:\s+${PORT_ID}\s*$$
   ^\s+Port\s+[Dd]escription\s+:\s+${PORT_DESCRIPTION}\s*$$
-  ^\s+System\s+[Nn]ame\s+:\s+${SYSTEM_NAME}\s*$$
-  ^\s+System\s+[Dd]escription\s+:\s+${SYSTEM_DESCRIPTION}\s*$$
+  ^\s*System\s+[Nn]ame\s+:\s+${SYSTEM_NAME}\s*$$
+  ^\s*System\s+[Dd]escription\s+:\s+${SYSTEM_DESCRIPTION}\s*$$
   ^\s+Enabled\s+:\s+${CAPABILITIES}\s*$$
   ^\s+Address\s+:\s+${MGMT_ADDRESS}\s*$$
   ^Local\s+Interface -> Continue.Record
   ^Local\s+Interface\s+:\s+${LOCAL_INTERFACE}\s*$$ -> Neighbor
   ^.
+
+EOF

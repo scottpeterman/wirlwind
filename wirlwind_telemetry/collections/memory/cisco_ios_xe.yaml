@@ -1,0 +1,28 @@
+# Memory collection - Cisco IOS / IOS-XE
+#
+# Actual output format:
+#   Processor Pool Total:  409190504 Used:  265844792 Free:  143345712
+#         lsmi Pool Total:    6295128 Used:    6294296 Free:        832
+
+command: "show processes memory sorted"
+interval: 30
+
+parsers:
+  # Priority 1: ntc-templates TextFSM
+  - type: textfsm
+    templates:
+      - cisco_ios_show_processes_memory_sorted.textfsm
+
+  # Priority 2: regex - captures Processor Pool summary line
+  - type: regex
+    pattern: 'Processor Pool Total:\s+(\d+)\s+Used:\s+(\d+)\s+Free:\s+(\d+)'
+    flags: ""
+    groups:
+      total: 1
+      used: 2
+      free: 3
+
+normalize:
+  total: total
+  used: used
+  free: free

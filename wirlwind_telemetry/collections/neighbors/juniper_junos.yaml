@@ -44,9 +44,12 @@ parsers:
 # Dashboard updateNeighbors() expects: device_id, local_intf, remote_intf
 # Graph also uses: mgmt_ip, platform, capabilities
 normalize:
-  device_id: system_name
   local_intf: local_interface
   remote_intf: port_id
-  mgmt_ip: mgmt_address
+  device_id: system_name
+  chassis_id: chassis_id
+  parent_interface: parent_interface
+  port_description: port_description
   neighbor_description: system_description
+  mgmt_ip: mgmt_address
   capabilities: capabilities

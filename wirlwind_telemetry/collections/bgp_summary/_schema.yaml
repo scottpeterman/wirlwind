@@ -1,0 +1,6 @@
+description: BGP peer summary
+fields:
+  neighbor:         { type: str,  description: "Peer IP address" }
+  remote_as:        { type: int,  description: "Peer AS number" }
+  state_pfx:        { type: str,  description: "State or prefix count" }
+  uptime:           { type: str,  description: "Session uptime string" }

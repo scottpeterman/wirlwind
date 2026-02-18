@@ -1,0 +1,40 @@
+# CPU collection - Arista EOS
+#
+# Uses Linux 'top' output via "show processes top once".
+# Same command as the memory collection — TextFSM returns both
+# global CPU/memory stats and per-process rows.
+#
+# TextFSM Filldown globals (lowercased):
+#   global_cpu_percent_user, global_cpu_percent_system,
+#   global_cpu_percent_idle, global_cpu_percent_nice, etc.
+#
+# TextFSM per-process rows (lowercased):
+#   pid, user, priority, nice, virtual_memory_size,
+#   resident_memory_size, shared_memory_size, process_status,
+#   percent_cpu, percent_memory, cpu_time, command
+#
+# The driver computes five_sec_total from (100 - idle) and
+# builds the process list from per-process rows.
+
+command: "show processes top once"
+interval: 30
+
+parsers:
+  # Priority 1: custom TextFSM (fixes NTC PRIORITY regex for negative values)
+  - type: textfsm
+    templates:
+      - arista_eos_show_processes_top_once.textfsm
+
+  # Priority 2: regex - captures %Cpu(s) line
+  - type: regex
+    pattern: '%?Cpu\(s\):\s*(\d+\.\d+)\s*%?us,\s*(\d+\.\d+)\s*%?sy,\s*\d+\.\d+\s*%?ni,\s*(\d+\.\d+)\s*%?id'
+    flags: DOTALL
+    groups:
+      user_pct: 1
+      system_pct: 2
+      idle_pct: 3
+
+normalize:
+  cpu_usr: global_cpu_percent_user
+  cpu_sys: global_cpu_percent_system
+  cpu_idle: global_cpu_percent_idle

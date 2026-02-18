@@ -1,0 +1,40 @@
+# CPU collection - Juniper JunOS
+#
+# Uses "show system processes extensive" — BSD top(1) output that
+# provides BOTH system-wide CPU stats AND per-process WCPU%.
+#
+# One command feeds two dashboard widgets:
+#   - CPU gauge: from header (CPU: X% user, Y% system, Z% idle)
+#   - Process table: from per-process rows (PID, WCPU%, RES, COMMAND)
+#
+# This replaces the previous "show chassis routing-engine" approach
+# which provided CPU stats but no process data. The memory collection
+# still uses routing-engine for memory_utilization, DRAM, temperature,
+# model, and uptime — fields not available in top output.
+#
+# TextFSM template uses Filldown for header stats so every process
+# row Record carries cpu_idle, load_avg, etc. The shaper flattens
+# row[0] to top-level, giving the driver access to both CPU stats
+# and the full process list.
+#
+# Header fields (Filldown):
+#   cpu_user, cpu_system, cpu_interrupt, cpu_idle, cpu_nice,
+#   load_avg_1, load_avg_5, load_avg_15
+#
+# Process fields (per row):
+#   pid, username, pri, nice, size, res, state, time, wcpu, command
+
+command: "show system processes extensive"
+interval: 30
+
+parsers:
+  - type: textfsm
+    templates:
+      - juniper_junos_show_system_processes_extensive.textfsm
+
+normalize:
+  cpu_user: cpu_user
+  cpu_sys: cpu_system
+  cpu_idle: cpu_idle
+  cpu_interrupt: cpu_interrupt
+  name: command

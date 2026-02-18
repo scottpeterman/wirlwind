@@ -12,7 +12,9 @@ Wirlwind connects to a network device over SSH, runs vendor-specific CLI command
 The dashboard runs standalone (own window) or embedded as a tab in [nterm](https://github.com/scottpeterman/nterm), a PyQt6 SSH terminal with network tooling integration.
 
 
-![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/refs/heads/main/screenshots/sample.png)
+![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/refs/heads/main/screenshots/sample2.png)
+![wirlwind screenshot](https://raw.githubusercontent.com/scottpeterman/wirlwind/refs/heads/main/screenshots/sample3.png)
+
 
 ## Architecture
 

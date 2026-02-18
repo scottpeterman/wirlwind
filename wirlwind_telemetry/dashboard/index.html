@@ -8,33 +8,160 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=JetBrains+Mono:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
+/* ═══════════════════════════════════════════════════════════════
+   THEME VARIABLES — Edit this block or override with [data-theme]
+   ═══════════════════════════════════════════════════════════════ */
 :root {
+  /* ── Backgrounds ─────────────────────────────────────── */
   --bg-primary: #0a0e14;
   --bg-panel: #111820;
   --bg-panel-header: #151d27;
+  --bg-header-top: #0f1822;
+  --bg-modal: #0d1218;
+  --bg-hover: #0d1520;
+
+  /* ── Borders ─────────────────────────────────────────── */
   --border: #1e2a38;
   --border-accent: #2a3a4e;
+  --border-dim: #1e2a3844;
+
+  /* ── Text ────────────────────────────────────────────── */
   --text-primary: #c8d6e5;
   --text-secondary: #6b7d93;
   --text-dim: #3d4f63;
+
+  /* ── Accent: Green ───────────────────────────────────── */
   --green: #00e676;
   --green-dim: #00e67633;
+  --green-border: #00e67644;
+  --green-area-start: rgba(0,230,118,0.15);
+  --green-area-end: rgba(0,230,118,0);
+
+  /* ── Accent: Amber ───────────────────────────────────── */
   --amber: #ffab00;
   --amber-dim: #ffab0033;
+  --amber-border: #ffab0044;
+  --amber-area-start: rgba(255,171,0,0.12);
+  --amber-area-end: rgba(255,171,0,0);
+
+  /* ── Accent: Red ─────────────────────────────────────── */
   --red: #ff1744;
   --red-dim: #ff174433;
+  --red-border: #ff174444;
+
+  /* ── Accent: Cyan ────────────────────────────────────── */
   --cyan: #00e5ff;
   --cyan-dim: #00e5ff22;
+  --cyan-border: #00e5ff44;
+  --cyan-area-start: rgba(0,229,255,0.25);
+  --cyan-area-end: rgba(0,229,255,0);
+
+  /* ── Accent: Blue ────────────────────────────────────── */
   --blue: #2979ff;
   --blue-dim: #2979ff33;
+  --blue-border: #2979ff44;
+
+  /* ── Accent: Purple ──────────────────────────────────── */
   --purple: #d500f9;
+  --purple-area-start: rgba(213,0,249,0.2);
+  --purple-area-end: rgba(213,0,249,0);
+
+  /* ── Effects ─────────────────────────────────────────── */
   --scanline: rgba(0,229,255,0.03);
+  --overlay-bg: rgba(0,0,0,0.85);
+  --modal-shadow: rgba(0,0,0,0.6);
+
+  /* ── Typography ──────────────────────────────────────── */
+  --font-display: 'Orbitron', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-data: 'Share Tech Mono', monospace;
+
+  /* ── Chart line widths ───────────────────────────────── */
+  --chart-line-thin: 1.5;
+  --chart-line-normal: 2;
+
+  /* ── Gauge stops [fraction, color] ───────────────────── */
+  --gauge-ok-stop: 0.6;
+  --gauge-warn-stop: 0.8;
+
+  /* ── Theme-toggle effects ──────────────────────────── */
+  --glow-opacity: 1;
+  --scanline-display: block;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT THEME — [data-theme="light"] on <html>
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  /* ── Backgrounds ─────────────────────────────────────── */
+  --bg-primary: #f0f2f5;
+  --bg-panel: #ffffff;
+  --bg-panel-header: #f7f8fa;
+  --bg-header-top: #e8ecf1;
+  --bg-modal: #ffffff;
+  --bg-hover: #eef1f6;
+
+  /* ── Borders ─────────────────────────────────────────── */
+  --border: #d4dae3;
+  --border-accent: #bcc5d1;
+  --border-dim: #d4dae366;
+
+  /* ── Text ────────────────────────────────────────────── */
+  --text-primary: #1a2332;
+  --text-secondary: #4a5568;
+  --text-dim: #8896a8;
+
+  /* ── Accent: Green ───────────────────────────────────── */
+  --green: #0d9f5f;
+  --green-dim: #0d9f5f18;
+  --green-border: #0d9f5f33;
+  --green-area-start: rgba(13,159,95,0.12);
+  --green-area-end: rgba(13,159,95,0);
+
+  /* ── Accent: Amber ───────────────────────────────────── */
+  --amber: #c47f00;
+  --amber-dim: #c47f0018;
+  --amber-border: #c47f0033;
+  --amber-area-start: rgba(196,127,0,0.10);
+  --amber-area-end: rgba(196,127,0,0);
+
+  /* ── Accent: Red ─────────────────────────────────────── */
+  --red: #d32f2f;
+  --red-dim: #d32f2f18;
+  --red-border: #d32f2f33;
+
+  /* ── Accent: Cyan ────────────────────────────────────── */
+  --cyan: #0288b3;
+  --cyan-dim: #0288b315;
+  --cyan-border: #0288b333;
+  --cyan-area-start: rgba(2,136,179,0.15);
+  --cyan-area-end: rgba(2,136,179,0);
+
+  /* ── Accent: Blue ────────────────────────────────────── */
+  --blue: #1565c0;
+  --blue-dim: #1565c018;
+  --blue-border: #1565c033;
+
+  /* ── Accent: Purple ──────────────────────────────────── */
+  --purple: #9c27b0;
+  --purple-area-start: rgba(156,39,176,0.12);
+  --purple-area-end: rgba(156,39,176,0);
+
+  /* ── Effects ─────────────────────────────────────────── */
+  --scanline: transparent;
+  --overlay-bg: rgba(0,0,0,0.4);
+  --modal-shadow: rgba(0,0,0,0.15);
+
+  /* ── Suppress dark-theme glows ─────────────────────── */
+  --glow-opacity: 0;
+  --scanline-display: none;
+}
+
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   overflow-x: hidden;
 }
@@ -42,11 +169,12 @@ body::after {
   content:''; position:fixed; top:0;left:0;right:0;bottom:0;
   background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
   pointer-events:none; z-index:9999;
+  display: var(--scanline-display, block);
 }
 
 /* Header */
 .header {
-  background: linear-gradient(180deg, #0f1822 0%, var(--bg-primary) 100%);
+  background: linear-gradient(180deg, var(--bg-header-top) 0%, var(--bg-primary) 100%);
   border-bottom: 1px solid var(--border);
   padding: 10px 16px;
   display: flex; align-items: center; justify-content: space-between;
@@ -60,12 +188,12 @@ body::after {
 .logo-mark {
   width:32px; height:32px; border:2px solid var(--cyan); border-radius:3px;
   display:flex; align-items:center; justify-content:center;
-  font-family:'Orbitron',monospace; font-weight:900; font-size:12px;
+  font-family:var(--font-display); font-weight:900; font-size:12px;
   color:var(--cyan); background:var(--cyan-dim);
   text-shadow:0 0 10px var(--cyan); box-shadow:0 0 12px var(--cyan-dim);
 }
 .device-identity h1 {
-  font-family:'Orbitron',monospace; font-size:14px; font-weight:700;
+  font-family:var(--font-display); font-size:14px; font-weight:700;
   color:var(--text-primary); letter-spacing:2px; text-transform:uppercase;
 }
 .device-identity .subtitle { font-size:10px; color:var(--text-secondary); letter-spacing:1px; margin-top:1px; }
@@ -80,7 +208,7 @@ body::after {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
-.live-clock { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--cyan); text-shadow:0 0 8px var(--cyan-dim); }
+.live-clock { font-family:var(--font-data); font-size:11px; color:var(--cyan); text-shadow:0 0 8px var(--cyan-dim); }
 
 /* Info strip */
 .info-strip {
@@ -107,18 +235,18 @@ body::after {
 .panel-header.red::before { background:var(--red); box-shadow:0 0 8px var(--red-dim); }
 .panel-header.purple::before { background:var(--purple); }
 .panel-title {
-  font-family:'Orbitron',monospace; font-size:9px; font-weight:600;
+  font-family:var(--font-display); font-size:9px; font-weight:600;
   letter-spacing:2px; text-transform:uppercase; color:var(--text-secondary);
 }
 .panel-header-right { display:flex; align-items:center; gap:6px; }
 .panel-badge {
   font-size:9px; padding:2px 7px; border-radius:2px; font-weight:600; letter-spacing:1px;
 }
-.badge-ok { background:var(--green-dim); color:var(--green); border:1px solid #00e67644; }
-.badge-warn { background:var(--amber-dim); color:var(--amber); border:1px solid #ffab0044; }
-.badge-crit { background:var(--red-dim); color:var(--red); border:1px solid #ff174444; }
-.badge-none { background:#1e2a3844; color:var(--text-dim); border:1px solid var(--border); }
-.badge-error { background:var(--red-dim); color:var(--red); border:1px solid #ff174444; font-size:8px; }
+.badge-ok { background:var(--green-dim); color:var(--green); border:1px solid var(--green-border); }
+.badge-warn { background:var(--amber-dim); color:var(--amber); border:1px solid var(--amber-border); }
+.badge-crit { background:var(--red-dim); color:var(--red); border:1px solid var(--red-border); }
+.badge-none { background:var(--border-dim); color:var(--text-dim); border:1px solid var(--border); }
+.badge-error { background:var(--red-dim); color:var(--red); border:1px solid var(--red-border); font-size:8px; }
 .panel-body { padding:10px; min-height:200px; display:flex; align-items:center; justify-content:center; }
 .chart-container { width:100%; height:100%; min-height:200px; }
 .span-2 { grid-column:span 2; }
@@ -134,7 +262,7 @@ body::after {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-dim);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
   padding: 1px 5px;
@@ -148,7 +276,7 @@ body::after {
   background: var(--bg-primary);
   color: var(--text-secondary);
   border: 1px solid var(--border-accent);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   padding: 2px 4px;
   border-radius: 3px;
@@ -181,7 +309,7 @@ body::after {
   display: none;
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.85);
+  background: var(--overlay-bg);
   z-index: 10000;
   justify-content: center;
   align-items: center;
@@ -191,7 +319,7 @@ body::after {
   display: flex;
 }
 .debug-modal {
-  background: #0d1218;
+  background: var(--bg-modal);
   border: 1px solid var(--border-accent);
   border-radius: 4px;
   max-width: 900px;
@@ -199,7 +327,7 @@ body::after {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 1px var(--cyan);
+  box-shadow: 0 8px 40px var(--modal-shadow), 0 0 1px var(--cyan);
 }
 .debug-modal-header {
   display: flex;
@@ -210,7 +338,7 @@ body::after {
   background: var(--bg-panel-header);
 }
 .debug-modal-title {
-  font-family: 'Orbitron', monospace;
+  font-family: var(--font-display);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 2px;
@@ -228,18 +356,18 @@ body::after {
   border-radius: 2px;
   font-weight: 600;
   letter-spacing: 0.5px;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: var(--font-data);
 }
-.parser-textfsm { background: #00e67622; color: var(--green); border: 1px solid #00e67644; }
-.parser-ttp { background: #2979ff22; color: var(--blue); border: 1px solid #2979ff44; }
-.parser-regex { background: #ffab0022; color: var(--amber); border: 1px solid #ffab0044; }
-.parser-none { background: var(--red-dim); color: var(--red); border: 1px solid #ff174444; }
+.parser-textfsm { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+.parser-ttp { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue-border); }
+.parser-regex { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border); }
+.parser-none { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
 .debug-modal-actions { display:flex; gap:6px; }
 .debug-action-btn {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   padding: 3px 10px;
   border-radius: 2px;
@@ -259,7 +387,7 @@ body::after {
   flex: 1;
   overflow-y: auto;
   padding: 12px 16px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -267,7 +395,7 @@ body::after {
   color: var(--text-secondary);
 }
 .debug-modal-body::-webkit-scrollbar { width:6px; }
-.debug-modal-body::-webkit-scrollbar-track { background:#0d1218; }
+.debug-modal-body::-webkit-scrollbar-track { background:var(--bg-modal); }
 .debug-modal-body::-webkit-scrollbar-thumb { background:var(--border-accent); border-radius:3px; }
 
 /* JSON syntax highlighting */
@@ -286,8 +414,8 @@ body::after {
   border-bottom:1px solid var(--border); background:var(--bg-panel-header);
   position:sticky; top:0; z-index:1;
 }
-.data-table td { padding:4px 8px; border-bottom:1px solid #111820; color:var(--text-secondary); font-family:'Share Tech Mono',monospace; }
-.data-table tr:hover td { background:#0d1520; }
+.data-table td { padding:4px 8px; border-bottom:1px solid var(--bg-panel); color:var(--text-secondary); font-family:var(--font-data); }
+.data-table tr:hover td { background:var(--bg-hover); }
 .intf-up { color:var(--green); }
 .intf-down { color:var(--red); }
 .intf-admin { color:var(--text-dim); }
@@ -312,8 +440,8 @@ body::after {
 .table-scroll::-webkit-scrollbar-thumb { background:var(--border-accent); border-radius:2px; }
 
 /* Log entries */
-.log-entry { padding:2px 8px; font-family:'Share Tech Mono',monospace; font-size:11px; border-bottom:1px solid #111820; }
-.log-entry:hover { background:#0d1520; }
+.log-entry { padding:2px 8px; font-family:var(--font-data); font-size:11px; border-bottom:1px solid var(--bg-panel); }
+.log-entry:hover { background:var(--bg-hover); }
 .log-ts { color:var(--text-dim); margin-right:8px; }
 .log-sev-0,.log-sev-1,.log-sev-2 { color:var(--red); }
 .log-sev-3 { color:var(--red); }
@@ -324,7 +452,7 @@ body::after {
 
 /* Waiting state */
 .waiting {
-  color:var(--text-dim); font-family:'Share Tech Mono',monospace;
+  color:var(--text-dim); font-family:var(--font-data);
   font-size:11px; text-align:center;
 }
 .waiting .spinner {
@@ -336,12 +464,70 @@ body::after {
 
 /* No-data state (replaces spinner after timeout) */
 .no-data {
-  color:var(--text-dim); font-family:'Share Tech Mono',monospace;
+  color:var(--text-dim); font-family:var(--font-data);
   font-size:11px; text-align:center;
 }
 
 @media (max-width:1200px) { .dashboard{grid-template-columns:1fr 1fr;} .span-3{grid-column:span 2;} }
 @media (max-width:768px) { .dashboard{grid-template-columns:1fr;} .span-2,.span-3{grid-column:span 1;} }
+
+/* ── Light theme: suppress glows & adapt components ────────── */
+[data-theme="light"] .logo-mark {
+  text-shadow: none; box-shadow: none;
+}
+[data-theme="light"] .header::after { opacity: 0.15; }
+[data-theme="light"] .status-dot { box-shadow: none; }
+[data-theme="light"] .meta-value.status-up { text-shadow: none; }
+[data-theme="light"] .live-clock { text-shadow: none; }
+[data-theme="light"] .panel-header::before { box-shadow: none; }
+[data-theme="light"] .intf-status-dot.up,
+[data-theme="light"] .intf-status-dot.down { box-shadow: none; }
+[data-theme="light"] .util-low,
+[data-theme="light"] .util-med,
+[data-theme="light"] .util-high { box-shadow: none; }
+[data-theme="light"] .debug-btn:hover { text-shadow: none; }
+[data-theme="light"] .debug-modal { box-shadow: 0 8px 30px var(--modal-shadow); }
+
+/* ── Theme toggle button ───────────────────────────────────── */
+.theme-toggle {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-accent);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  width: 30px; height: 30px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s ease;
+  margin-right: 12px;
+  line-height: 1;
+}
+.theme-toggle:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: var(--cyan-dim);
+}
+
+/* ── Smooth theme transition ──────────────────────────────── */
+body,
+.header, .info-strip, .panel, .panel-header,
+.debug-modal, .debug-modal-header, .debug-modal-body,
+.logo-mark, .meta-value, .live-clock,
+.data-table th, .data-table td, .log-entry,
+.theme-toggle, .debug-btn, .debug-action-btn, .intf-select {
+  transition: background-color 0.25s ease, color 0.2s ease,
+              border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* ── Light theme scrollbars ───────────────────────────────── */
+[data-theme="light"] .table-scroll::-webkit-scrollbar-track,
+[data-theme="light"] .debug-modal-body::-webkit-scrollbar-track { background: var(--bg-panel); }
+[data-theme="light"] .table-scroll::-webkit-scrollbar-thumb,
+[data-theme="light"] .debug-modal-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ── Light theme select options ───────────────────────────── */
+[data-theme="light"] .intf-select option { background: var(--bg-panel); color: var(--text-primary); }
 </style>
 </head>
 <body>
@@ -355,6 +541,7 @@ body::after {
     </div>
   </div>
   <div class="header-meta">
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">☀</button>
     <div class="meta-item">
       <div class="meta-label">Status</div>
       <div class="meta-value" id="connStatus"><span class="status-dot" id="statusDot" style="background:var(--amber)"></span>CONNECTING</div>
@@ -510,6 +697,136 @@ body::after {
 // Live data via QWebChannel ↔ Python bridge
 // ══════════════════════════════════════════════════════════════════════
 
+// ── Theme system ──────────────────────────────────────────────────────
+// Reads all colors/fonts from CSS custom properties so swapping :root
+// (or adding a [data-theme] override) re-skins the entire dashboard.
+// Call Theme.refresh() after changing CSS variables at runtime.
+
+const Theme = (() => {
+  let cache = {};
+
+  function get(prop) {
+    if (cache[prop] !== undefined) return cache[prop];
+    const val = getComputedStyle(document.documentElement).getPropertyValue(prop).trim();
+    cache[prop] = val;
+    return val;
+  }
+
+  function refresh() {
+    cache = {};
+    // Re-read everything
+    const t = Theme;
+    Object.keys(t).forEach(k => {
+      if (typeof t[k] === 'string') delete t[k];
+    });
+    populate();
+    // Rebuild echarts with new colors
+    if (typeof reinitChartsTheme === 'function') reinitChartsTheme();
+  }
+
+  function populate() {
+    // Backgrounds
+    Theme.bgPrimary      = get('--bg-primary');
+    Theme.bgPanel        = get('--bg-panel');
+    Theme.bgPanelHeader  = get('--bg-panel-header');
+    Theme.bgHeaderTop    = get('--bg-header-top');
+    Theme.bgModal        = get('--bg-modal');
+    Theme.bgHover        = get('--bg-hover');
+
+    // Borders
+    Theme.border         = get('--border');
+    Theme.borderAccent   = get('--border-accent');
+
+    // Text
+    Theme.textPrimary    = get('--text-primary');
+    Theme.textSecondary  = get('--text-secondary');
+    Theme.textDim        = get('--text-dim');
+
+    // Accents
+    Theme.green          = get('--green');
+    Theme.greenDim       = get('--green-dim');
+    Theme.greenAreaStart = get('--green-area-start');
+    Theme.greenAreaEnd   = get('--green-area-end');
+
+    Theme.amber          = get('--amber');
+    Theme.amberDim       = get('--amber-dim');
+    Theme.amberAreaStart = get('--amber-area-start');
+    Theme.amberAreaEnd   = get('--amber-area-end');
+
+    Theme.red            = get('--red');
+    Theme.redDim         = get('--red-dim');
+
+    Theme.cyan           = get('--cyan');
+    Theme.cyanDim        = get('--cyan-dim');
+    Theme.cyanAreaStart  = get('--cyan-area-start');
+    Theme.cyanAreaEnd    = get('--cyan-area-end');
+
+    Theme.blue           = get('--blue');
+    Theme.blueDim        = get('--blue-dim');
+
+    Theme.purple         = get('--purple');
+    Theme.purpleAreaStart = get('--purple-area-start');
+    Theme.purpleAreaEnd  = get('--purple-area-end');
+
+    // Fonts
+    Theme.fontDisplay    = get('--font-display');
+    Theme.fontMono       = get('--font-mono');
+    Theme.fontData       = get('--font-data');
+  }
+
+  // Public API
+  return {
+    get,
+    refresh,
+    populate,
+    // Apply a full theme object: { '--bg-primary': '#fff', ... }
+    apply(vars) {
+      const root = document.documentElement;
+      Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+      this.refresh();
+    },
+    // Switch named theme: 'dark' | 'light'
+    setTheme(name) {
+      applyTheme(name);
+    }
+  };
+})();
+
+// Populate on first load (after DOM ready, called from DOMContentLoaded)
+
+// ── Theme toggle ──────────────────────────────────────────────────────
+// Switches between dark (default) and light themes.
+// Persists preference via localStorage when available.
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme');
+  const next = current === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+}
+
+function applyTheme(themeName) {
+  const html = document.documentElement;
+  if (themeName === 'light') {
+    html.setAttribute('data-theme', 'light');
+  } else {
+    html.removeAttribute('data-theme');
+  }
+  // Update toggle icon
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = themeName === 'light' ? '☾' : '☀';
+  // Rebuild Theme cache + ECharts colors
+  Theme.refresh();
+  // Persist
+  try { localStorage.setItem('wt-theme', themeName); } catch(e) {}
+}
+
+function loadSavedTheme() {
+  try {
+    const saved = localStorage.getItem('wt-theme');
+    if (saved === 'light') applyTheme('light');
+  } catch(e) {}
+}
+
 let bridge = null;
 const charts = {};
 const throughputHistory = {
@@ -570,14 +887,14 @@ function initCharts() {
   // History (empty — only if visible)
   if (charts.history) {
     charts.history.setOption({
-    tooltip: { trigger:'axis', backgroundColor:'#151d27', borderColor:'#2a3a4e', textStyle:{color:'#c8d6e5',fontFamily:'Share Tech Mono',fontSize:11} },
-    legend: { data:['CPU %','Memory %'], textStyle:{color:'#6b7d93',fontFamily:'Share Tech Mono',fontSize:10}, top:5, right:10 },
+    tooltip: { trigger:'axis', backgroundColor:Theme.bgPanelHeader, borderColor:Theme.borderAccent, textStyle:{color:Theme.textPrimary,fontFamily:Theme.fontData,fontSize:11} },
+    legend: { data:['CPU %','Memory %'], textStyle:{color:Theme.textSecondary,fontFamily:Theme.fontData,fontSize:10}, top:5, right:10 },
     grid: { left:50, right:20, top:40, bottom:30 },
-    xAxis: { type:'category', data:[], axisLine:{lineStyle:{color:'#1e2a38'}}, axisLabel:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:9}, splitLine:{show:false} },
-    yAxis: { type:'value', min:0, max:100, name:'%', nameTextStyle:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:9}, axisLine:{lineStyle:{color:'#1e2a38'}}, axisLabel:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:10}, splitLine:{lineStyle:{color:'#111820'}} },
+    xAxis: { type:'category', data:[], axisLine:{lineStyle:{color:Theme.border}}, axisLabel:{color:Theme.textDim,fontFamily:Theme.fontData,fontSize:9}, splitLine:{show:false} },
+    yAxis: { type:'value', min:0, max:100, name:'%', nameTextStyle:{color:Theme.textDim,fontFamily:Theme.fontData,fontSize:9}, axisLine:{lineStyle:{color:Theme.border}}, axisLabel:{color:Theme.textDim,fontFamily:Theme.fontData,fontSize:10}, splitLine:{lineStyle:{color:Theme.bgPanel}} },
     series: [
-      { name:'CPU %', type:'line', data:[], smooth:true, showSymbol:false, lineStyle:{color:'#00e676',width:1.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(0,230,118,0.15)'},{offset:1,color:'rgba(0,230,118,0)'}]}} },
-      { name:'Memory %', type:'line', data:[], smooth:true, showSymbol:false, lineStyle:{color:'#ffab00',width:1.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(255,171,0,0.12)'},{offset:1,color:'rgba(255,171,0,0)'}]}} }
+      { name:'CPU %', type:'line', data:[], smooth:true, showSymbol:false, lineStyle:{color:Theme.green,width:1.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:Theme.greenAreaStart},{offset:1,color:Theme.greenAreaEnd}]}} },
+      { name:'Memory %', type:'line', data:[], smooth:true, showSymbol:false, lineStyle:{color:Theme.amber,width:1.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:Theme.amberAreaStart},{offset:1,color:Theme.amberAreaEnd}]}} }
     ]
   });
   } // end if (charts.history)
@@ -587,7 +904,7 @@ function initCharts() {
     series: [{
       type:'graph', layout:'force', roam:true,
       force:{repulsion:200,edgeLength:[80,130],gravity:0.15},
-      label:{show:true,color:'#c8d6e5',fontSize:9,fontFamily:'Share Tech Mono'},
+      label:{show:true,color:Theme.textPrimary,fontSize:9,fontFamily:Theme.fontData},
       data:[], links:[]
     }]
   });
@@ -599,13 +916,13 @@ function gaugeOption(value, subtitle) {
   return {
     series: [{
       type:'gauge', startAngle:220, endAngle:-40, min:0, max:100, splitNumber:10, radius:'90%',
-      axisLine: { lineStyle:{ width:12, color:[[0.6,'#00e676'],[0.8,'#ffab00'],[1,'#ff1744']] }},
-      pointer: { itemStyle:{color:'#c8d6e5'}, width:4, length:'60%' },
-      axisTick: { distance:-12, length:6, lineStyle:{color:'#1e2a38',width:1} },
-      splitLine: { distance:-14, length:12, lineStyle:{color:'#2a3a4e',width:1} },
-      axisLabel: { color:'#3d4f63', distance:20, fontSize:10, fontFamily:'Share Tech Mono' },
-      detail: { valueAnimation:true, formatter:'{value}%', color:'#c8d6e5', fontSize:26, fontFamily:'Orbitron', fontWeight:700, offsetCenter:[0,'70%'] },
-      title: { offsetCenter:[0,'92%'], fontSize:9, color:'#3d4f63', fontFamily:'JetBrains Mono' },
+      axisLine: { lineStyle:{ width:12, color:[[0.6,Theme.green],[0.8,Theme.amber],[1,Theme.red]] }},
+      pointer: { itemStyle:{color:Theme.textPrimary}, width:4, length:'60%' },
+      axisTick: { distance:-12, length:6, lineStyle:{color:Theme.border,width:1} },
+      splitLine: { distance:-14, length:12, lineStyle:{color:Theme.borderAccent,width:1} },
+      axisLabel: { color:Theme.textDim, distance:20, fontSize:10, fontFamily:Theme.fontData },
+      detail: { valueAnimation:true, formatter:'{value}%', color:Theme.textPrimary, fontSize:26, fontFamily:Theme.fontDisplay, fontWeight:700, offsetCenter:[0,'70%'] },
+      title: { offsetCenter:[0,'92%'], fontSize:9, color:Theme.textDim, fontFamily:Theme.fontMono },
       data: [{ value: value, name: subtitle }]
     }]
   };
@@ -613,14 +930,14 @@ function gaugeOption(value, subtitle) {
 
 function areaChartOption(timestamps, series1, series2, yName) {
   return {
-    tooltip: { trigger:'axis', backgroundColor:'#151d27', borderColor:'#2a3a4e', textStyle:{color:'#c8d6e5',fontFamily:'Share Tech Mono',fontSize:11} },
-    legend: { data:['Inbound','Outbound'], textStyle:{color:'#6b7d93',fontFamily:'Share Tech Mono',fontSize:10}, top:5, right:10 },
+    tooltip: { trigger:'axis', backgroundColor:Theme.bgPanelHeader, borderColor:Theme.borderAccent, textStyle:{color:Theme.textPrimary,fontFamily:Theme.fontData,fontSize:11} },
+    legend: { data:['Inbound','Outbound'], textStyle:{color:Theme.textSecondary,fontFamily:Theme.fontData,fontSize:10}, top:5, right:10 },
     grid: { left:60, right:20, top:40, bottom:30 },
-    xAxis: { type:'category', data:timestamps, axisLine:{lineStyle:{color:'#1e2a38'}}, axisLabel:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:9,interval:'auto'}, splitLine:{show:false} },
-    yAxis: { type:'value', name:yName, nameTextStyle:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:9}, axisLine:{lineStyle:{color:'#1e2a38'}}, axisLabel:{color:'#3d4f63',fontFamily:'Share Tech Mono',fontSize:10}, splitLine:{lineStyle:{color:'#111820'}} },
+    xAxis: { type:'category', data:timestamps, axisLine:{lineStyle:{color:Theme.border}}, axisLabel:{color:Theme.textDim,fontFamily:Theme.fontData,fontSize:9,interval:'auto'}, splitLine:{show:false} },
+    yAxis: { type:'value', name:yName, nameTextStyle:{color:Theme.textDim,fontFamily:Theme.fontData,fontSize:9}, axisLine:{lineStyle:{color:Theme.border}}, axisLabel:{color:Theme.textDim,fontFamily:Theme.fontData,fontSize:10}, splitLine:{lineStyle:{color:Theme.bgPanel}} },
     series: [
-      { name:'Inbound', type:'line', data:series1, smooth:true, showSymbol:false, lineStyle:{color:'#00e5ff',width:2}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(0,229,255,0.25)'},{offset:1,color:'rgba(0,229,255,0)'}]}} },
-      { name:'Outbound', type:'line', data:series2, smooth:true, showSymbol:false, lineStyle:{color:'#d500f9',width:2}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(213,0,249,0.2)'},{offset:1,color:'rgba(213,0,249,0)'}]}} }
+      { name:'Inbound', type:'line', data:series1, smooth:true, showSymbol:false, lineStyle:{color:Theme.cyan,width:2}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:Theme.cyanAreaStart},{offset:1,color:Theme.cyanAreaEnd}]}} },
+      { name:'Outbound', type:'line', data:series2, smooth:true, showSymbol:false, lineStyle:{color:Theme.purple,width:2}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:Theme.purpleAreaStart},{offset:1,color:Theme.purpleAreaEnd}]}} }
     ]
   };
 }
@@ -645,12 +962,12 @@ function updateMemory(data) {
   const val = data.used_pct || 0;
   const subtitle = (data.used_display && data.total_display)
     ? `${data.used_display} / ${data.total_display}` : `${val}%`;
-  const color = val > 75 ? '#ffab00' : '#c8d6e5';
+  const color = val > 75 ? Theme.amber : Theme.textPrimary;
   if (charts.mem) {
     charts.mem.setOption({
       series:[{
         data:[{value:Math.round(val*10)/10, name:subtitle}],
-        detail:{color:color, textShadowColor: val>75 ? '#ffab0044' : 'transparent', textShadowBlur: val>75 ? 10 : 0}
+        detail:{color:color, textShadowColor: val>75 ? Theme.amberDim : 'transparent', textShadowBlur: val>75 ? 10 : 0}
       }]
     });
   }
@@ -806,7 +1123,8 @@ function renderThroughputChart() {
   // Auto-scale unit based on peak
   const peak = Math.max(Math.max(...inArr), Math.max(...outArr), 1);
   let divisor, unit;
-  if (peak >= 1000000) { divisor = 1000000; unit = 'Mbps'; }
+  if (peak >= 1000000000) { divisor = 1000000000; unit = 'Gbps'; }
+  else if (peak >= 1000000) { divisor = 1000000; unit = 'Mbps'; }
   else if (peak >= 1000) { divisor = 1000; unit = 'Kbps'; }
   else { divisor = 1; unit = 'bps'; }
 
@@ -843,8 +1161,8 @@ function updateNeighbors(data) {
     name: shortHost,
     symbolSize: 40,
     symbol: 'roundRect',
-    itemStyle:{color:'#0a0e14',borderColor:'#00e5ff',borderWidth:2,shadowColor:'#00e5ff44',shadowBlur:12},
-    label:{color:'#00e5ff',fontWeight:700,fontSize:11}
+    itemStyle:{color:Theme.bgPrimary,borderColor:Theme.cyan,borderWidth:2,shadowColor:Theme.cyanDim,shadowBlur:12},
+    label:{color:Theme.cyan,fontWeight:700,fontSize:11}
   }];
   const links = [];
 
@@ -857,9 +1175,9 @@ function updateNeighbors(data) {
 
     // Node styling by type
     let borderColor, symbol;
-    if (isRouter) { borderColor = '#00e5ff'; symbol = 'roundRect'; }
-    else if (isSwitch) { borderColor = '#00e676'; symbol = 'rect'; }
-    else { borderColor = '#ffab00'; symbol = 'circle'; }
+    if (isRouter) { borderColor = Theme.cyan; symbol = 'roundRect'; }
+    else if (isSwitch) { borderColor = Theme.green; symbol = 'rect'; }
+    else { borderColor = Theme.amber; symbol = 'circle'; }
 
     // Build label with platform/IP detail
     let detail = name;
@@ -869,7 +1187,7 @@ function updateNeighbors(data) {
       name: name,
       symbolSize: 28,
       symbol: symbol,
-      itemStyle:{color:'#111820',borderColor:borderColor,borderWidth:1.5},
+      itemStyle:{color:Theme.bgPanel,borderColor:borderColor,borderWidth:1.5},
       label:{formatter: detail}
     });
 
@@ -882,24 +1200,24 @@ function updateNeighbors(data) {
       source: shortHost,
       target: name,
       label: edgeLabel,
-      lineStyle:{color:'#1e2a38',width:1.5,curveness: neighbors.length > 3 ? 0.15 : 0}
+      lineStyle:{color:Theme.border,width:1.5,curveness: neighbors.length > 3 ? 0.15 : 0}
     });
   });
 
   charts.neighbor.setOption({
     tooltip:{
       show:true,
-      backgroundColor:'#151d27',
-      borderColor:'#2a3a4e',
-      textStyle:{color:'#c8d6e5',fontFamily:'Share Tech Mono',fontSize:10}
+      backgroundColor:Theme.bgPanelHeader,
+      borderColor:Theme.borderAccent,
+      textStyle:{color:Theme.textPrimary,fontFamily:Theme.fontData,fontSize:10}
     },
     series:[{
       type:'graph', layout:'force', roam:true,
       force:{repulsion:200, edgeLength:[80,130], gravity:0.15},
-      label:{show:true, color:'#c8d6e5', fontSize:9, fontFamily:'Share Tech Mono'},
+      label:{show:true, color:Theme.textPrimary, fontSize:9, fontFamily:Theme.fontData},
       data:nodes,
       links:links,
-      edgeLabel:{show:true, fontSize:8, fontFamily:'Share Tech Mono', color:'#3d4f63',
+      edgeLabel:{show:true, fontSize:8, fontFamily:Theme.fontData, color:Theme.textDim,
         formatter: function(p){ return p.data.label || ''; }
       }
     }]
@@ -1007,7 +1325,7 @@ function showDebug(collectionKey) {
       templateTag.style.display = '';
       templateTag.textContent = data._template;
       templateTag.className = 'debug-parser-tag';
-      templateTag.style.background = '#1e2a3844';
+      templateTag.style.background = 'var(--border-dim)';
       templateTag.style.color = 'var(--text-secondary)';
       templateTag.style.border = '1px solid var(--border)';
     } else {
@@ -1308,9 +1626,49 @@ function updateDeviceInfo(info) {
   if (chips) strip.innerHTML = chips;
 }
 
+// ── Theme-aware chart rebuild ──────────────────────────────────────
+// Called by Theme.refresh() after CSS variables change.
+function reinitChartsTheme() {
+  // Rebuild gauge options if visible
+  if (charts.cpu) charts.cpu.setOption(gaugeOption(0, '—'), true);
+  if (charts.mem) charts.mem.setOption(gaugeOption(0, '—'), true);
+
+  // Rebuild throughput chart base options
+  if (charts.throughput) {
+    charts.throughput.setOption(areaChartOption(
+      throughputHistory.timestamps,
+      [], [], 'Mbps'
+    ), true);
+    renderThroughputChart();
+  }
+
+  // Rebuild history chart base
+  if (charts.history) {
+    charts.history.setOption({
+      tooltip: { backgroundColor:Theme.bgPanelHeader, borderColor:Theme.borderAccent, textStyle:{color:Theme.textPrimary,fontFamily:Theme.fontData} },
+      legend: { textStyle:{color:Theme.textSecondary,fontFamily:Theme.fontData} },
+      xAxis: { axisLine:{lineStyle:{color:Theme.border}}, axisLabel:{color:Theme.textDim,fontFamily:Theme.fontData} },
+      yAxis: { nameTextStyle:{color:Theme.textDim,fontFamily:Theme.fontData}, axisLine:{lineStyle:{color:Theme.border}}, axisLabel:{color:Theme.textDim,fontFamily:Theme.fontData}, splitLine:{lineStyle:{color:Theme.bgPanel}} },
+      series: [
+        { lineStyle:{color:Theme.green}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:Theme.greenAreaStart},{offset:1,color:Theme.greenAreaEnd}]}} },
+        { lineStyle:{color:Theme.amber}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:Theme.amberAreaStart},{offset:1,color:Theme.amberAreaEnd}]}} }
+      ]
+    });
+  }
+
+  // Rebuild neighbor chart base
+  if (charts.neighbor) {
+    charts.neighbor.setOption({
+      series:[{ label:{color:Theme.textPrimary,fontFamily:Theme.fontData}, edgeLabel:{color:Theme.textDim,fontFamily:Theme.fontData} }]
+    });
+  }
+}
+
 // ── Init ───────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function() {
+  loadSavedTheme();
+  Theme.populate();
   initCharts();
   setInterval(updateClock, 1000);
   updateClock();
